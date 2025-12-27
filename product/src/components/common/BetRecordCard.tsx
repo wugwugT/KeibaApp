@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native';
-import { BetRecord } from '../../types/BetRecord';
+import { BetRecord } from '../../types/betRecord';
 
 type Props = {
   record: BetRecord;

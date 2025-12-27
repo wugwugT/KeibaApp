@@ -36,10 +36,11 @@
 
 ```bash
 npm install --legacy-peer-deps
+```
 
 ### 2. アプリの起動
 インストール完了後、以下のコマンドでキャッシュをクリアして起動します。
 
 ```bash
 npm start -c
-
+```

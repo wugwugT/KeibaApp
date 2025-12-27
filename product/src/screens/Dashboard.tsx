@@ -1,6 +1,17 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { FlatList } from 'react-native';
+import { BetRecordCard } from '../components/common/BetRecordCard';
+
+<FlatList
+  data={records}
+  keyExtractor={(item) => item.id}
+  renderItem={({ item }) => (
+    <BetRecordCard record={item} />
+  )}
+/>
+
 
 /**
  * フィルタ種別

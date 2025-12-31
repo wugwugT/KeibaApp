@@ -9,7 +9,10 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "このアプリはJRA馬券のQRコードを読み取るためにカメラを使用します。"
+      }
     },
     "android": {
       "adaptiveIcon": {

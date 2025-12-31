@@ -6,6 +6,7 @@ import {
   FlatList,
   TouchableOpacity,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BetRecord } from '../types/betRecord';
 import { getAllBetRecords } from '../services/db/crud';
@@ -69,75 +70,78 @@ export const Dashboard = () => {
       ? 0
       : Math.round((totalReturn / totalInvestment) * 100);
 
-  // ===== UI =====
   return (
-    <View style={styles.container}>
-      {/* ===== サマリー ===== */}
-      <View style={styles.summaryCard}>
-        <Text style={styles.summaryTitle}>収支サマリー</Text>
-
-        <Text
-          style={[
-            styles.summaryProfit,
-            { color: profit >= 0 ? '#2ecc71' : '#e74c3c' },
-          ]}
-        >
-          {profit >= 0 ? '+' : ''}
-          {profit.toLocaleString()}円
-        </Text>
-
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryText}>
-            投資: {totalInvestment.toLocaleString()}円
-          </Text>
-          <Text style={styles.summaryText}>
-            回収率: {recoveryRate}%
-          </Text>
-        </View>
-      </View>
-
-      {/* ===== フィルタ ===== */}
-      <View style={styles.filterRow}>
-        {(['all', 'today', 'month'] as FilterType[]).map((key) => (
-          <TouchableOpacity
-            key={key}
-            style={[
-              styles.filterButton,
-              filter === key && styles.filterButtonActive,
-            ]}
-            onPress={() => setFilter(key)}
-          >
-            <Text
-              style={[
-                styles.filterText,
-                filter === key && styles.filterTextActive,
-              ]}
-            >
-              {key === 'all'
-                ? '全期間'
-                : key === 'today'
-                ? '今日'
-                : '今月'}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* ===== 履歴リスト ===== */}
+    <SafeAreaView style={styles.safeArea}>
       <FlatList
         data={filteredRecords}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
           <BetRecordCard record={item} />
         )}
-        contentContainerStyle={{ paddingBottom: 24 }}
+        ListHeaderComponent={
+          <>
+            {/* ===== サマリー ===== */}
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryTitle}>収支サマリー</Text>
+
+              <Text
+                style={[
+                  styles.summaryProfit,
+                  { color: profit >= 0 ? '#2ecc71' : '#e74c3c' },
+                ]}
+              >
+                {profit >= 0 ? '+' : ''}
+                {profit.toLocaleString()}円
+              </Text>
+
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryText}>
+                  投資: {totalInvestment.toLocaleString()}円
+                </Text>
+                <Text style={styles.summaryText}>
+                  回収率: {recoveryRate}%
+                </Text>
+              </View>
+            </View>
+
+            {/* ===== フィルタ ===== */}
+            <View style={styles.filterRow}>
+              {(['all', 'today', 'month'] as FilterType[]).map((key) => (
+                <TouchableOpacity
+                  key={key}
+                  style={[
+                    styles.filterButton,
+                    filter === key && styles.filterButtonActive,
+                  ]}
+                  onPress={() => setFilter(key)}
+                >
+                  <Text
+                    style={[
+                      styles.filterText,
+                      filter === key && styles.filterTextActive,
+                    ]}
+                  >
+                    {key === 'all'
+                      ? '全期間'
+                      : key === 'today'
+                      ? '今日'
+                      : '今月'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </>
+        }
+        contentContainerStyle={{
+          paddingBottom: 80, // Bottom Tab 対策
+        }}
       />
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
     backgroundColor: '#f2f2f2',
   },

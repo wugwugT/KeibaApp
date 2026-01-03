@@ -64,7 +64,7 @@ export default function RecordEditScreen({ qrData }: Props) {
     }
 
     const input: BetRecordInput = {
-      date: new Date().toISOString().slice(0, 10),
+      date: new Date(),
       place,
       race_no: Number(raceNo),
       bet_type: betType,

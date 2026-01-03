@@ -18,8 +18,8 @@ const DATABASE_NAME = 'betRecords.db';
  */
 const CREATE_TABLE_SQL = `
   CREATE TABLE IF NOT EXISTS bet_records (
-    id TEXT PRIMARY KEY NOT NULL,
-    date TEXT NOT NULL,
+    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    date INTEGER NOT NULL,
     place TEXT NOT NULL,
     race_no INTEGER NOT NULL,
     bet_type TEXT NOT NULL,

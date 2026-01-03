@@ -36,8 +36,8 @@ export type Place =
 /**
  * 馬券の収支レコード
  * 
- * @property id - レコードの一意識別子（UUID形式）
- * @property date - 購入日（YYYY-MM-DD形式）
+ * @property id - レコードの一意識別子（数値ID、自動採番）
+ * @property date - 購入日（Date型）
  * @property place - 競馬場名（JRA10場のいずれか）
  * @property race_no - レース番号（1〜12）
  * @property bet_type - 式別（単勝、馬連、3連単等）
@@ -45,10 +45,10 @@ export type Place =
  * @property return - 回収額（整数、単位：円）
  */
 export interface BetRecord {
-  /** レコードの一意識別子（UUID形式） */
-  id: string;
-  /** 購入日（YYYY-MM-DD形式） */
-  date: string;
+  /** レコードの一意識別子（数値ID、自動採番） */
+  id: number;
+  /** 購入日（Date型） */
+  date: Date;
   /** 競馬場名（JRA10場のいずれか） */
   place: Place;
   /** レース番号（1〜12） */

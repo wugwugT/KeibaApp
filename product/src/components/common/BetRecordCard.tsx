@@ -17,7 +17,7 @@ export const BetRecordCard = ({ record }: Props) => {
     <View style={styles.card}>
       <View style={styles.header}>
         <Text style={styles.date}>
-          {record.date}　{record.place} {record.race_no}R
+          {record.date.toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' })}　{record.place} {record.race_no}R
         </Text>
       </View>
 

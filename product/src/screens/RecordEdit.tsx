@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -8,44 +8,54 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
 } from 'react-native';
-import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { saveBetRecord } from '../services/db/crud';
 import { BET_TYPES } from '../constants/betTypes';
 import type { BetRecordInput, Place, BetType } from '../types/betRecord';
+import type { JRAQRData } from '../services/qr';
 
 /**
  * UI-003: 入力・修正画面
  */
 
-type RecordEditRouteParams = {
-  RecordEdit: {
-    ocrResult?: {
-      place?: Place;
-      race_no?: number;
-      investment?: number;
-    };
-  };
+type Props = {
+  qrData: JRAQRData | null;
 };
 
-export default function RecordEditScreen() {
+export default function RecordEditScreen({ qrData }: Props) {
   const navigation = useNavigation();
-  const route =
-    useRoute<RouteProp<RecordEditRouteParams, 'RecordEdit'>>();
 
-  const ocr = route.params?.ocrResult;
-
-  // フォーム状態
-  const [place, setPlace] = useState<Place | ''>(ocr?.place ?? '');
-  const [raceNo, setRaceNo] = useState(
-    ocr?.race_no ? String(ocr.race_no) : ''
-  );
-  const [investment, setInvestment] = useState(
-    ocr?.investment ? String(ocr.investment) : ''
-  );
+  // フォーム状態（最初は空）
+  const [place, setPlace] = useState<Place | ''>('');
+  const [raceNo, setRaceNo] = useState('');
+  const [investment, setInvestment] = useState('');
   const [betType, setBetType] = useState<BetType | ''>('');
   const [returnAmount, setReturnAmount] = useState('0');
+
+  /**
+   * ✅ QRデータが届いたらフォームに反映
+   * （ここが今回の本質的な修正）
+   */
+  useEffect(() => {
+    if (!qrData) return;
+
+    setPlace((qrData.place as Place) ?? '');
+    setRaceNo(qrData.race_no ? String(qrData.race_no) : '');
+    setInvestment(
+      qrData.total_investment
+        ? String(qrData.total_investment)
+        : ''
+    );
+
+    // QRに式別があれば反映
+    if (qrData.bet_type) {
+      setBetType(qrData.bet_type as BetType);
+    }
+  }, [qrData]);
 
   const handleSave = async () => {
     if (!place || !raceNo || !investment || !betType) {
@@ -72,79 +82,91 @@ export default function RecordEditScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={styles.container}
-    >
-      <Text style={styles.title}>馬券内容の確認・登録</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Text style={styles.title}>馬券内容の確認・登録</Text>
 
-      <Text style={styles.label}>開催場</Text>
-      <TextInput
-        style={styles.input}
-        value={place}
-        onChangeText={(v) => setPlace(v as Place)}
-        placeholder="東京"
-      />
+          <Text style={styles.label}>開催場</Text>
+          <TextInput
+            style={styles.input}
+            value={place}
+            onChangeText={(v) => setPlace(v as Place)}
+            placeholder="東京"
+          />
 
-      <Text style={styles.label}>レース番号</Text>
-      <TextInput
-        style={styles.input}
-        value={raceNo}
-        onChangeText={setRaceNo}
-        keyboardType="number-pad"
-      />
+          <Text style={styles.label}>レース番号</Text>
+          <TextInput
+            style={styles.input}
+            value={raceNo}
+            onChangeText={setRaceNo}
+            keyboardType="number-pad"
+          />
 
-      <Text style={styles.label}>投資額（円）</Text>
-      <TextInput
-        style={styles.input}
-        value={investment}
-        onChangeText={setInvestment}
-        keyboardType="number-pad"
-      />
+          <Text style={styles.label}>投資額（円）</Text>
+          <TextInput
+            style={styles.input}
+            value={investment}
+            onChangeText={setInvestment}
+            keyboardType="number-pad"
+          />
 
-      <Text style={styles.label}>式別</Text>
-      <View style={styles.betTypeContainer}>
-        {BET_TYPES.map((type: BetType) => (
-          <TouchableOpacity
-            key={type}
-            style={[
-              styles.betTypeButton,
-              betType === type && styles.betTypeSelected,
-            ]}
-            onPress={() => setBetType(type)}
-          >
-            <Text
-              style={[
-                styles.betTypeText,
-                betType === type && styles.betTypeTextSelected,
-              ]}
-            >
-              {type}
-            </Text>
+          <Text style={styles.label}>式別</Text>
+          <View style={styles.betTypeContainer}>
+            {BET_TYPES.map((type: BetType) => (
+              <TouchableOpacity
+                key={type}
+                style={[
+                  styles.betTypeButton,
+                  betType === type && styles.betTypeSelected,
+                ]}
+                onPress={() => setBetType(type)}
+              >
+                <Text
+                  style={[
+                    styles.betTypeText,
+                    betType === type && styles.betTypeTextSelected,
+                  ]}
+                >
+                  {type}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={styles.label}>回収額（円）</Text>
+          <TextInput
+            style={styles.input}
+            value={returnAmount}
+            onChangeText={setReturnAmount}
+            keyboardType="number-pad"
+          />
+        </ScrollView>
+
+        <View style={styles.footer}>
+          <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+            <Text style={styles.saveButtonText}>登録する</Text>
           </TouchableOpacity>
-        ))}
-      </View>
-
-      <Text style={styles.label}>回収額（円）</Text>
-      <TextInput
-        style={styles.input}
-        value={returnAmount}
-        onChangeText={setReturnAmount}
-        keyboardType="number-pad"
-      />
-
-      <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-        <Text style={styles.saveButtonText}>登録する</Text>
-      </TouchableOpacity>
-    </KeyboardAvoidingView>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
-    padding: 16,
     backgroundColor: '#fff',
+  },
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 140,
   },
   title: {
     fontSize: 20,
@@ -185,8 +207,17 @@ const styles = StyleSheet.create({
   betTypeTextSelected: {
     color: '#fff',
   },
+  footer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 16,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderColor: '#eee',
+  },
   saveButton: {
-    marginTop: 24,
     backgroundColor: '#000',
     paddingVertical: 14,
     borderRadius: 8,

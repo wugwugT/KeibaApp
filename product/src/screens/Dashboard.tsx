@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
+import { router } from 'expo-router';
 
 import { BetRecord } from '../types/betRecord';
 import { getAllBetRecords } from '../services/db/crud';
@@ -18,16 +20,17 @@ export const Dashboard = () => {
   const [records, setRecords] = useState<BetRecord[]>([]);
   const [filter, setFilter] = useState<FilterType>('all');
 
-  useEffect(() => {
-    loadRecords();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadRecords();
+    }, [])
+  );
 
   const loadRecords = async () => {
     const data = await getAllBetRecords();
     setRecords(data);
   };
 
-  // ===== フィルタ処理 =====
   const filteredRecords = records.filter((record) => {
     if (filter === 'all') return true;
 
@@ -52,7 +55,6 @@ export const Dashboard = () => {
     return true;
   });
 
-  // ===== 集計 =====
   const totalInvestment = filteredRecords.reduce(
     (sum, r) => sum + r.investment,
     0
@@ -80,7 +82,6 @@ export const Dashboard = () => {
         )}
         ListHeaderComponent={
           <>
-            {/* ===== サマリー ===== */}
             <View style={styles.summaryCard}>
               <Text style={styles.summaryTitle}>収支サマリー</Text>
 
@@ -104,7 +105,6 @@ export const Dashboard = () => {
               </View>
             </View>
 
-            {/* ===== フィルタ ===== */}
             <View style={styles.filterRow}>
               {(['all', 'today', 'month'] as FilterType[]).map((key) => (
                 <TouchableOpacity
@@ -132,10 +132,16 @@ export const Dashboard = () => {
             </View>
           </>
         }
-        contentContainerStyle={{
-          paddingBottom: 80, // Bottom Tab 対策
-        }}
+        contentContainerStyle={{ paddingBottom: 120 }}
       />
+
+      {/* ===== ＋ボタン（Scanner起動） ===== */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => router.push('/scanner')}
+      >
+        <Text style={styles.fabText}>＋</Text>
+      </TouchableOpacity>
     </SafeAreaView>
   );
 };
@@ -194,5 +200,24 @@ const styles = StyleSheet.create({
   },
   filterTextActive: {
     color: '#fff',
+  },
+
+  /** ＋ボタン */
+  fab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#000',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 6,
+  },
+  fabText: {
+    color: '#fff',
+    fontSize: 32,
+    lineHeight: 36,
   },
 });

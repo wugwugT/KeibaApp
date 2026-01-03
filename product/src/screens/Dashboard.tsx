@@ -35,7 +35,7 @@ export const Dashboard = () => {
     if (filter === 'all') return true;
 
     const today = new Date();
-    const recordDate = new Date(record.date);
+    const recordDate = record.date;
 
     if (filter === 'today') {
       return (
@@ -76,7 +76,7 @@ export const Dashboard = () => {
     <SafeAreaView style={styles.safeArea}>
       <FlatList
         data={filteredRecords}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => (
           <BetRecordCard record={item} />
         )}

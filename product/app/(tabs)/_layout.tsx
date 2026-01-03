@@ -30,6 +30,16 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
         }}
       />
+
+      {/* ▼▼ 開発用：一時確認タブ ▼▼ */}
+      <Tabs.Screen
+        name="scanner"
+        options={{ title: 'Scanner' }}
+      />
+      <Tabs.Screen
+        name="recordEdit"
+        options={{ title: 'RecordEdit' }}
+      />
     </Tabs>
   );
 }

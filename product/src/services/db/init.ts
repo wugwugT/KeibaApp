@@ -69,11 +69,18 @@ export const initializeDatabase = (): void => {
  * データベースを初期化し、テーブルを作成する（非同期版）
  * アプリ起動時に一度だけ呼び出す
  * 
+ * @param forceRecreate - trueの場合、既存のテーブルを削除して再作成する（マイグレーション用）
  * @returns Promise<void> 初期化が完了したら解決
  */
-export const initializeDatabaseAsync = async (): Promise<void> => {
+export const initializeDatabaseAsync = async (forceRecreate: boolean = false): Promise<void> => {
   try {
     const database = getDatabase();
+    
+    // マイグレーション: 既存のテーブルを削除して再作成
+    if (forceRecreate) {
+      await database.execAsync('DROP TABLE IF EXISTS bet_records;');
+      console.log('[DB] Existing table dropped for migration');
+    }
     
     // テーブル作成（非同期処理）
     await database.execAsync(CREATE_TABLE_SQL);

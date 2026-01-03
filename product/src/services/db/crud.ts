@@ -228,7 +228,25 @@ export const getBetRecordsByPlace = async (place: string): Promise<BetRecord[]> 
       WHERE place = ?
       ORDER BY date DESC, race_no DESC
     `;
-    const records = await db.getAllAsync<BetRecord>(sql, place);
+    const rows = await db.getAllAsync<{
+      id: number;
+      date: number;
+      place: string;
+      race_no: number;
+      bet_type: string;
+      investment: number;
+      return: number;
+    }>(sql, place);
+
+    const records: BetRecord[] = rows.map(row => ({
+      id: row.id,
+      date: timestampToDate(row.date),
+      place: row.place as Place,
+      race_no: row.race_no,
+      bet_type: row.bet_type as BetType,
+      investment: row.investment,
+      return: row.return,
+    }));
 
     console.log('[DB] BetRecords retrieved by place:', records.length);
     return records;
@@ -237,4 +255,3 @@ export const getBetRecordsByPlace = async (place: string): Promise<BetRecord[]> 
     throw error;
   }
 };
-

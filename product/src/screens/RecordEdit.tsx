@@ -9,18 +9,16 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Modal,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 import { saveBetRecord } from '../services/db/crud';
 import { BET_TYPES } from '../constants/betTypes';
 import type { BetRecordInput, Place, BetType } from '../types/betRecord';
 import type { JRAQRData } from '../services/qr';
-
-/**
- * UI-003: 入力・修正画面
- */
 
 type Props = {
   qrData: JRAQRData | null;
@@ -29,20 +27,19 @@ type Props = {
 export default function RecordEditScreen({ qrData }: Props) {
   const navigation = useNavigation();
 
-  // フォーム状態（最初は空）
+  const [date, setDate] = useState<Date>(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
   const [place, setPlace] = useState<Place | ''>('');
   const [raceNo, setRaceNo] = useState('');
   const [investment, setInvestment] = useState('');
   const [betType, setBetType] = useState<BetType | ''>('');
   const [returnAmount, setReturnAmount] = useState('0');
 
-  /**
-   * ✅ QRデータが届いたらフォームに反映
-   * （ここが今回の本質的な修正）
-   */
   useEffect(() => {
     if (!qrData) return;
 
+    setDate(new Date());
     setPlace((qrData.place as Place) ?? '');
     setRaceNo(qrData.race_no ? String(qrData.race_no) : '');
     setInvestment(
@@ -51,7 +48,6 @@ export default function RecordEditScreen({ qrData }: Props) {
         : ''
     );
 
-    // QRに式別があれば反映
     if (qrData.bet_type) {
       setBetType(qrData.bet_type as BetType);
     }
@@ -64,7 +60,7 @@ export default function RecordEditScreen({ qrData }: Props) {
     }
 
     const input: BetRecordInput = {
-      date: new Date(),
+      date,
       place,
       race_no: Number(raceNo),
       bet_type: betType,
@@ -76,7 +72,7 @@ export default function RecordEditScreen({ qrData }: Props) {
       await saveBetRecord(input);
       Alert.alert('登録完了', '収支を保存しました');
       navigation.goBack();
-    } catch (e) {
+    } catch {
       Alert.alert('エラー', '保存に失敗しました');
     }
   };
@@ -87,18 +83,23 @@ export default function RecordEditScreen({ qrData }: Props) {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}
       >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-        >
+        <ScrollView contentContainerStyle={styles.scrollContent}>
           <Text style={styles.title}>馬券内容の確認・登録</Text>
+
+          {/* 日付 */}
+          <Text style={styles.label}>日付</Text>
+          <TouchableOpacity
+            style={styles.input}
+            onPress={() => setShowDatePicker(true)}
+          >
+            <Text>{date.toLocaleDateString('ja-JP')}</Text>
+          </TouchableOpacity>
 
           <Text style={styles.label}>開催場</Text>
           <TextInput
             style={styles.input}
             value={place}
             onChangeText={(v) => setPlace(v as Place)}
-            placeholder="東京"
           />
 
           <Text style={styles.label}>レース番号</Text>
@@ -119,7 +120,7 @@ export default function RecordEditScreen({ qrData }: Props) {
 
           <Text style={styles.label}>式別</Text>
           <View style={styles.betTypeContainer}>
-            {BET_TYPES.map((type: BetType) => (
+            {BET_TYPES.map((type) => (
               <TouchableOpacity
                 key={type}
                 style={[
@@ -155,35 +156,46 @@ export default function RecordEditScreen({ qrData }: Props) {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      {/* ✅ DatePicker（ライト固定 + 日本語） */}
+      <Modal transparent visible={showDatePicker} animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <DateTimePicker
+              value={date}
+              mode="date"
+              display="spinner"
+              locale="ja-JP"
+              themeVariant="light"
+              onChange={(_, selectedDate) => {
+                if (selectedDate) setDate(selectedDate);
+              }}
+            />
+            <TouchableOpacity
+              style={styles.doneButton}
+              onPress={() => setShowDatePicker(false)}
+            >
+              <Text style={styles.doneText}>決定</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 140,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 16,
-  },
-  label: {
-    marginTop: 12,
-    marginBottom: 4,
-    fontSize: 14,
-  },
+  safeArea: { flex: 1, backgroundColor: '#fff' },
+  scrollContent: { padding: 16, paddingBottom: 140 },
+  title: { fontSize: 20, fontWeight: 'bold', marginBottom: 16 },
+  label: { marginTop: 12, marginBottom: 4 },
   input: {
     borderWidth: 1,
     borderColor: '#ccc',
     borderRadius: 6,
-    padding: 10,
+    padding: 12,
   },
+
   betTypeContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -198,24 +210,19 @@ const styles = StyleSheet.create({
     marginRight: 8,
     marginBottom: 8,
   },
-  betTypeSelected: {
-    backgroundColor: '#000',
-  },
-  betTypeText: {
-    fontSize: 12,
-  },
-  betTypeTextSelected: {
-    color: '#fff',
-  },
+  betTypeSelected: { backgroundColor: '#000' },
+  betTypeText: { fontSize: 12 },
+  betTypeTextSelected: { color: '#fff' },
+
   footer: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
     padding: 16,
-    backgroundColor: '#fff',
     borderTopWidth: 1,
     borderColor: '#eee',
+    backgroundColor: '#fff',
   },
   saveButton: {
     backgroundColor: '#000',
@@ -223,8 +230,24 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
   },
-  saveButtonText: {
-    color: '#fff',
+  saveButtonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    paddingTop: 16,
+  },
+  doneButton: {
+    padding: 16,
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderColor: '#eee',
+  },
+  doneText: {
     fontSize: 16,
     fontWeight: 'bold',
   },

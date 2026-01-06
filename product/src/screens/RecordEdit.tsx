@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams } from 'expo-router';  // ✅ router用に追加
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 import { saveBetRecord } from '../services/db/crud';
@@ -21,11 +22,12 @@ import type { BetRecordInput, Place, BetType } from '../types/betRecord';
 import type { JRAQRData } from '../services/qr';
 
 type Props = {
-  qrData: JRAQRData | null;
+  // 削除: 直接props受け取りではなくrouter params使用
 };
 
-export default function RecordEditScreen({ qrData }: Props) {
+export default function RecordEditScreen() {
   const navigation = useNavigation();
+  const params = useLocalSearchParams();  // ✅ QR/OCRデータを取得
 
   const [date, setDate] = useState<Date>(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -36,22 +38,27 @@ export default function RecordEditScreen({ qrData }: Props) {
   const [betType, setBetType] = useState<BetType | ''>('');
   const [returnAmount, setReturnAmount] = useState('0');
 
+  // ✅ QR/OCRデータのパース
+  const qrData = params.qr ? JSON.parse(params.qr as string) : null;
+  const ocrData = params.ocr ? JSON.parse(params.ocr as string) : null;
+  const inputData = qrData || ocrData;  // どちらか優先
+
   useEffect(() => {
-    if (!qrData) return;
+    if (!inputData) return;
 
     setDate(new Date());
-    setPlace((qrData.place as Place) ?? '');
-    setRaceNo(qrData.race_no ? String(qrData.race_no) : '');
+    setPlace((inputData.place as Place) ?? '');
+    setRaceNo(inputData.race_no ? String(inputData.race_no) : '');
     setInvestment(
-      qrData.total_investment
-        ? String(qrData.total_investment)
+      inputData.total_investment || inputData.investment
+        ? String(inputData.total_investment || inputData.investment)
         : ''
     );
 
-    if (qrData.bet_type) {
-      setBetType(qrData.bet_type as BetType);
+    if (inputData.bet_type) {
+      setBetType(inputData.bet_type as BetType);
     }
-  }, [qrData]);
+  }, [inputData]);
 
   const handleSave = async () => {
     if (!place || !raceNo || !investment || !betType) {
@@ -86,6 +93,15 @@ export default function RecordEditScreen({ qrData }: Props) {
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <Text style={styles.title}>馬券内容の確認・登録</Text>
 
+          {/* データソース表示 */}
+          {inputData && (
+            <View style={styles.sourceBadge}>
+              <Text style={styles.sourceText}>
+                {qrData ? 'QR読み取り' : 'OCR読み取り'}で自動入力済み
+              </Text>
+            </View>
+          )}
+
           {/* 日付 */}
           <Text style={styles.label}>日付</Text>
           <TouchableOpacity
@@ -100,6 +116,7 @@ export default function RecordEditScreen({ qrData }: Props) {
             style={styles.input}
             value={place}
             onChangeText={(v) => setPlace(v as Place)}
+            placeholder="例: 東京"
           />
 
           <Text style={styles.label}>レース番号</Text>
@@ -108,6 +125,7 @@ export default function RecordEditScreen({ qrData }: Props) {
             value={raceNo}
             onChangeText={setRaceNo}
             keyboardType="number-pad"
+            placeholder="例: 11"
           />
 
           <Text style={styles.label}>投資額（円）</Text>
@@ -116,6 +134,7 @@ export default function RecordEditScreen({ qrData }: Props) {
             value={investment}
             onChangeText={setInvestment}
             keyboardType="number-pad"
+            placeholder="例: 1000"
           />
 
           <Text style={styles.label}>式別</Text>
@@ -147,6 +166,7 @@ export default function RecordEditScreen({ qrData }: Props) {
             value={returnAmount}
             onChangeText={setReturnAmount}
             keyboardType="number-pad"
+            placeholder="0"
           />
         </ScrollView>
 
@@ -157,7 +177,7 @@ export default function RecordEditScreen({ qrData }: Props) {
         </View>
       </KeyboardAvoidingView>
 
-      {/* ✅ DatePicker（ライト固定 + 日本語） */}
+      {/* DatePicker */}
       <Modal transparent visible={showDatePicker} animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -188,12 +208,28 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#fff' },
   scrollContent: { padding: 16, paddingBottom: 140 },
   title: { fontSize: 20, fontWeight: 'bold', marginBottom: 16 },
-  label: { marginTop: 12, marginBottom: 4 },
+  
+  // ✅ 新規: データソースバッジ
+  sourceBadge: {
+    backgroundColor: '#E3F2FD',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  sourceText: {
+    color: '#1976D2',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  
+  label: { marginTop: 12, marginBottom: 4, fontWeight: '500' },
   input: {
     borderWidth: 1,
     borderColor: '#ccc',
     borderRadius: 6,
     padding: 12,
+    fontSize: 16,
   },
 
   betTypeContainer: {

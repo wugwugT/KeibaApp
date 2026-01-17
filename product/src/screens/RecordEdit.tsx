@@ -118,6 +118,62 @@ export default function RecordEditScreen({ qrData }: Props) {
             keyboardType="number-pad"
           />
 
+          {/* 複合馬券の各口を表示 */}
+          {qrData?.normal_entries && qrData.normal_entries.length > 1 && (
+            <View style={styles.entriesContainer}>
+              <Text style={styles.label}>各口の情報（{qrData.normal_entries.length}口）</Text>
+              {qrData.normal_entries.map((entry, index) => (
+                <View key={index} style={styles.entryContainer}>
+                  <Text style={styles.entryTitle}>口{index + 1}</Text>
+                  <Text style={styles.entryText}>式別: {entry.bet_type}</Text>
+                  {entry.first_place && <Text style={styles.entryText}>1着: {entry.first_place}番</Text>}
+                  {entry.second_place && <Text style={styles.entryText}>2着: {entry.second_place}番</Text>}
+                  {entry.third_place && <Text style={styles.entryText}>3着: {entry.third_place}番</Text>}
+                  {entry.bet_type === '馬単' && entry.ura && <Text style={styles.entryText}>裏あり</Text>}
+                  <Text style={styles.entryText}>投資額: {entry.investment.toLocaleString()}円</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* ボックスの場合 */}
+          {qrData?.box_selection && (
+            <View style={styles.entriesContainer}>
+              <Text style={styles.label}>ボックス選択</Text>
+              <Text style={styles.entryText}>式別: {qrData.box_selection.bet_type}</Text>
+              <Text style={styles.entryText}>選択馬番: {qrData.box_selection.selections.join(', ')}</Text>
+              <Text style={styles.entryText}>投資額: {qrData.box_selection.investment.toLocaleString()}円</Text>
+            </View>
+          )}
+
+          {/* ながしの場合 */}
+          {qrData?.nagashi_selection && (
+            <View style={styles.entriesContainer}>
+              <Text style={styles.label}>ながし選択</Text>
+              <Text style={styles.entryText}>式別: {qrData.nagashi_selection.bet_type}</Text>
+              {qrData.nagashi_selection.axis1_selections.length > 0 && (
+                <Text style={styles.entryText}>軸1: {qrData.nagashi_selection.axis1_selections.join(', ')}</Text>
+              )}
+              {qrData.nagashi_selection.axis2_selections.length > 0 && (
+                <Text style={styles.entryText}>軸2: {qrData.nagashi_selection.axis2_selections.join(', ')}</Text>
+              )}
+              <Text style={styles.entryText}>相手: {qrData.nagashi_selection.opponent_selections.join(', ')}</Text>
+              {qrData.nagashi_selection.is_multi && <Text style={styles.entryText}>マルチあり</Text>}
+              <Text style={styles.entryText}>投資額: {qrData.nagashi_selection.investment.toLocaleString()}円</Text>
+            </View>
+          )}
+
+          {/* フォーメーションの場合 */}
+          {qrData?.formation_selection && (
+            <View style={styles.entriesContainer}>
+              <Text style={styles.label}>フォーメーション選択</Text>
+              <Text style={styles.entryText}>1着: {qrData.formation_selection.first_place_selections.join(', ')}</Text>
+              <Text style={styles.entryText}>2着: {qrData.formation_selection.second_place_selections.join(', ')}</Text>
+              <Text style={styles.entryText}>3着: {qrData.formation_selection.third_place_selections.join(', ')}</Text>
+              <Text style={styles.entryText}>投資額: {qrData.formation_selection.investment.toLocaleString()}円</Text>
+            </View>
+          )}
+
           <Text style={styles.label}>式別</Text>
           <View style={styles.betTypeContainer}>
             {BET_TYPES.map((type) => (
@@ -250,5 +306,27 @@ const styles = StyleSheet.create({
   doneText: {
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  entriesContainer: {
+    marginTop: 16,
+    marginBottom: 16,
+    padding: 12,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+  },
+  entryContainer: {
+    marginTop: 8,
+    padding: 8,
+    backgroundColor: '#fff',
+    borderRadius: 4,
+  },
+  entryTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  entryText: {
+    fontSize: 12,
+    marginTop: 2,
   },
 });

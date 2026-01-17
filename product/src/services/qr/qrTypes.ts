@@ -40,6 +40,8 @@ export interface FormationSelection {
  * ながしの選択情報
  */
 export interface NagashiSelection {
+  /** 式別 */
+  bet_type: BetType;
   /** 軸1頭目の選択馬番（1-18） */
   axis1_selections: number[];
   /** 軸2頭目の選択馬番（1-18、軸2頭ながしの場合のみ） */
@@ -56,6 +58,8 @@ export interface NagashiSelection {
  * ボックスの選択情報
  */
 export interface BoxSelection {
+  /** 式別 */
+  bet_type: BetType;
   /** 選択した馬番のリスト（1-18） */
   selections: number[];
   /** 投資額（円、単位100円） */
@@ -82,8 +86,6 @@ export interface JRAQRData {
   ticket_no: string | null;
   /** 発売場所（29-32桁）: 競馬場コードまたはウインズコード */
   sales_location: string | null;
-  /** 発売機の機番コード（35-43桁）: 9桁のコード */
-  machine_code: string | null;
   
   /** 通常・応援馬券の場合: 各口の情報 */
   normal_entries: NormalBetEntry[] | null;
@@ -113,4 +115,3 @@ export interface JRAQRData {
  * Expo Camera SDK 54では'qr'を使用
  */
 export const QR_CODE_TYPES: readonly ['qr'] = ['qr'] as const;
-

@@ -2,96 +2,97 @@
  * フォーメーションの抽出ロジック
  */
 
+import type { BetType } from '@/src/types/betRecord';
 import type { FormationSelection } from './qrTypes';
 
 /**
  * フォーメーションの選択情報を抽出する
  * 
- * 44:式別（機番が9桁のため、44桁目から開始）
- * 45:0固定
- * 46-99:各着順の選択有無（1桁ずつ、0=選択無し、1=選択あり）
- * 100-104:購入金額（単位100円）
+ * ルール:
+ * - 43桁: 式別（1単勝、2複勝、3枠連、5馬連、6馬単、7ワイド、8三連複、9三連単）
+ * - 44桁: 0固定
+ * - 45-62桁: 1着目の選択（18桁、0=未選択、1=選択）
+ * - 63-80桁: 2着目の選択（18桁、0=未選択、1=選択）
+ * - 81-98桁: 3着目の選択（18桁、0=未選択、1=選択）
+ * - 99-103桁: 金額（5桁、単位100円）
  * 
- * @param code - QRコードの数字列
+ * @param code - QRコードの数字列（extra部分、43桁以降）
  * @returns フォーメーションの選択情報またはnull
  */
 export const extractFormationSelection = (code: string): FormationSelection | null => {
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/e67fc349-a245-4c88-ae2f-a1c721dd6e3d', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      location: 'qrFormation.ts:24',
-      message: 'extractFormationSelection entry',
-      data: {
-        codeLength: code.length,
-        code43: code.charAt(42), // 式別
-        code44: code.charAt(43), // 0固定
-        code43_51: code.substring(42, 50)
-      },
-      timestamp: Date.now(),
-      sessionId: 'debug-session',
-      runId: 'post-fix',
-      hypothesisId: 'D'
-    })
-  }).catch(() => {});
-  // #endregion
-
-  if (code.length < 103) return null;
-
-  // 式別（43桁目 / index 42）
-  const betTypeCode = code.charAt(42);
-  const validTypes = ['1', '2', '3', '5', '6', '7', '8', '9'];
-
-  if (!betTypeCode || !validTypes.includes(betTypeCode)) {
+  if (code.length < 103) return null; // 最低限の長さチェック（式別1桁+固定0 1桁+54桁ブロック+金額5桁）
+  
+  // 式別（43桁目、extraの先頭）
+  const betTypeCode = code.charAt(0);
+  const betTypeMap: Record<string, BetType> = {
+    '1': '単勝',
+    '2': '複勝',
+    '3': '枠連',
+    '5': '馬連',
+    '6': '馬単',
+    '7': 'ワイド',
+    '8': '3連複',
+    '9': '3連単',
+  };
+  
+  const betType = betTypeMap[betTypeCode];
+  if (!betType) {
     return null;
   }
-
-  // 44桁目（index 43）が0であることを確認
-  if (code.charAt(43) !== '0') {
+  
+  // 44桁目が0であることを確認
+  if (code.charAt(1) !== '0') {
     return null;
   }
-
-  // --- 馬番・枠番の抽出 ---
-  // 1着目: 45-62桁 (index 44-61)
+  
+  // 1着目: 45-62桁（extra内では2-19桁目）
   const firstPlaceSelections: number[] = [];
-  for (let i = 44; i < 62; i++) {
-    if (code.charAt(i) === '1') firstPlaceSelections.push(i - 44 + 1);
+  for (let i = 2; i < 20; i++) {
+    if (code.charAt(i) === '1') {
+      firstPlaceSelections.push(i - 2 + 1); // 1-18に変換
+    }
   }
-
-  // 2着目: 63-80桁 (index 62-79)
+  
+  // 2着目: 63-80桁（extra内では20-37桁目）
   const secondPlaceSelections: number[] = [];
-  for (let i = 62; i < 80; i++) {
-    if (code.charAt(i) === '1') secondPlaceSelections.push(i - 62 + 1);
+  for (let i = 20; i < 38; i++) {
+    if (code.charAt(i) === '1') {
+      secondPlaceSelections.push(i - 20 + 1); // 1-18に変換
+    }
   }
-
-  // 3着目: 81-98桁 (index 80-97)
+  
+  // 3着目: 81-98桁（extra内では38-55桁目）
   const thirdPlaceSelections: number[] = [];
-  for (let i = 80; i < 98; i++) {
-    if (code.charAt(i) === '1') thirdPlaceSelections.push(i - 80 + 1);
+  for (let i = 38; i < 56; i++) {
+    if (code.charAt(i) === '1') {
+      thirdPlaceSelections.push(i - 38 + 1); // 1-18に変換
+    }
   }
-
-  // --- 金額の抽出 ---
-  // 99-103桁 (index 98-102)
-  const amountStr = code.substring(98, 103);
+  
+  // 金額: 99-103桁（extra内では56-60桁目）
+  const amountStr = code.substring(56, 61);
   const baseInvestment = parseInt(amountStr + '00', 10);
-
-  // --- パターン数（買い目点数）の計算 ---
+  
+  // パターン数（買い目点数）の計算
   let patternCount = 0;
-
-  switch (betTypeCode) {
-    case '9': // 三連単
+  
+  switch (betType) {
+    case '3連単':
+      // 三連単: 1着、2着、3着の順列（重複なし）
       for (const h1 of firstPlaceSelections) {
         for (const h2 of secondPlaceSelections) {
           if (h1 === h2) continue;
           for (const h3 of thirdPlaceSelections) {
-            if (h3 !== h1 && h3 !== h2) patternCount++;
+            if (h3 !== h1 && h3 !== h2) {
+              patternCount++;
+            }
           }
         }
       }
       break;
-
-    case '8': // 三連複
+      
+    case '3連複':
+      // 三連複: 1着、2着、3着の組み合わせ（順序不問、重複なし）
       const comboSet3 = new Set<string>();
       for (const h1 of firstPlaceSelections) {
         for (const h2 of secondPlaceSelections) {
@@ -107,23 +108,27 @@ export const extractFormationSelection = (code: string): FormationSelection | nu
       }
       patternCount = comboSet3.size;
       break;
-
-    case '6': // 馬単
+      
+    case '馬単':
+      // 馬単: 1着、2着の順列（重複なし）
       for (const h1 of firstPlaceSelections) {
         for (const h2 of secondPlaceSelections) {
-          if (h1 !== h2) patternCount++;
+          if (h1 !== h2) {
+            patternCount++;
+          }
         }
       }
       break;
-
-    case '3': // 枠連
-    case '5': // 馬連
-    case '7': // ワイド
+      
+    case '枠連':
+    case '馬連':
+    case 'ワイド':
+      // 枠連・馬連・ワイド: 1着、2着の組み合わせ（順序不問、重複なし）
       const comboSet2 = new Set<string>();
       for (const h1 of firstPlaceSelections) {
         for (const h2 of secondPlaceSelections) {
           if (h1 !== h2) {
-            // 組み合わせをソートして重複を排除 (1-2 と 2-1 を同一視)
+            // 組み合わせをソートして重複を排除
             const combo = [h1, h2].sort((a, b) => a - b).join(',');
             comboSet2.add(combo);
           }
@@ -131,39 +136,13 @@ export const extractFormationSelection = (code: string): FormationSelection | nu
       }
       patternCount = comboSet2.size;
       break;
-
+      
     default:
       // 単勝・複勝などはフォーメーションとして通常存在しないが、念のため1着数とする
       patternCount = firstPlaceSelections.length;
       break;
   }
-
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/e67fc349-a245-4c88-ae2f-a1c721dd6e3d', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      location: 'qrFormation.ts:130',
-      message: 'formation calculation result',
-      data: {
-        betTypeCode,
-        patternCount,
-        baseInvestment,
-        totalInvestment: baseInvestment * patternCount,
-        selections: {
-          first: firstPlaceSelections,
-          second: secondPlaceSelections,
-          third: thirdPlaceSelections
-        }
-      },
-      timestamp: Date.now(),
-      sessionId: 'debug-session',
-      runId: 'post-fix',
-      hypothesisId: 'D'
-    })
-  }).catch(() => {});
-  // #endregion
-
+  
   return {
     first_place_selections: firstPlaceSelections,
     second_place_selections: secondPlaceSelections,
@@ -171,4 +150,3 @@ export const extractFormationSelection = (code: string): FormationSelection | nu
     investment: baseInvestment * patternCount,
   };
 };
-

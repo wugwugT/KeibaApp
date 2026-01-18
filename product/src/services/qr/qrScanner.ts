@@ -7,7 +7,18 @@
 
 import type { BetType } from '@/src/types/betRecord';
 import type { JRAQRData } from './qrTypes';
-import { extractPlaceFrom95DigitCode, extractRaceNoFrom95DigitCode, extractYearFrom95DigitCode, extractRoundFrom95DigitCode, extractDayFrom95DigitCode, extractBuyMethodFrom95DigitCode, extractTicketNoFrom95DigitCode, extractSalesLocationFrom95DigitCode, extractMachineCodeFrom95DigitCode, extractBetTypeFrom95DigitCode } from './qrExtractors';
+import {
+  extractPlaceFrom95DigitCode,
+  extractRaceNoFrom95DigitCode,
+  extractYearFrom95DigitCode,
+  extractRoundFrom95DigitCode,
+  extractDayFrom95DigitCode,
+  extractBuyMethodFrom95DigitCode,
+  extractTicketNoFrom95DigitCode,
+  extractSalesLocationFrom95DigitCode,
+  extractBetTypeFrom95DigitCode,
+  separateBaseAndExtra,
+} from './qrExtractors';
 import { extractNormalEntries } from './qrNormalEntries';
 import { extractBoxSelection } from './qrBox';
 import { extractNagashiSelection } from './qrNagashi';
@@ -18,12 +29,19 @@ export type { NormalBetEntry, FormationSelection, NagashiSelection, BoxSelection
 export { QR_CODE_TYPES } from './qrTypes';
 
 // 抽出関数を再エクスポート
-export { extractBetTypeFrom95DigitCode, extractYearFrom95DigitCode, extractRoundFrom95DigitCode, extractDayFrom95DigitCode, extractTicketNoFrom95DigitCode } from './qrExtractors';
+export {
+  extractBetTypeFrom95DigitCode,
+  extractYearFrom95DigitCode,
+  extractRoundFrom95DigitCode,
+  extractDayFrom95DigitCode,
+  extractTicketNoFrom95DigitCode,
+} from './qrExtractors';
 
 /**
  * QRコードからJRA項目を抽出する
  * 
- * JRA馬券のQRコードは95桁の数字列で、先頭43桁が重要な情報を含む
+ * JRA馬券のQRコードは数字列で、先頭42桁（base）と43桁以降（extra）に分かれる
+ * extra部分にはパディングが含まれる可能性があるため、パディングを除去してから処理する
  * 
  * @param qrData - QRコードから読み取った文字列データ
  * @returns 抽出されたJRA項目
@@ -38,7 +56,6 @@ export const extractJRAItemsFromQR = (qrData: string): JRAQRData => {
     buy_method: null,
     ticket_no: null,
     sales_location: null,
-    machine_code: null,
     normal_entries: null,
     formation_selection: null,
     nagashi_selection: null,
@@ -58,37 +75,33 @@ export const extractJRAItemsFromQR = (qrData: string): JRAQRData => {
       return result;
     }
     
-    // 最低限の長さチェック（1-41桁の情報を取得するため）
+    // 最低限の長さチェック（1-42桁の情報を取得するため）
     if (qrData.length < 42) {
       return result;
     }
     
-    // 1-41桁の情報を抽出
-    result.place = extractPlaceFrom95DigitCode(qrData);
-    result.race_no = extractRaceNoFrom95DigitCode(qrData);
-    result.year = extractYearFrom95DigitCode(qrData);
-    result.round = extractRoundFrom95DigitCode(qrData);
-    result.day = extractDayFrom95DigitCode(qrData);
-    result.buy_method = extractBuyMethodFrom95DigitCode(qrData);
-    result.ticket_no = extractTicketNoFrom95DigitCode(qrData); // 17-22桁（発券通番）
-    result.sales_location = extractSalesLocationFrom95DigitCode(qrData); // 29-32桁
-    result.machine_code = extractMachineCodeFrom95DigitCode(qrData); // 35-43桁
+    // base（1-42桁）とextra（43桁以降）を分離し、パディングを除去
+    const { base, extra } = separateBaseAndExtra(qrData);
     
-    // 43桁以降の買い方に応じた抽出
-    if (qrData.length >= 46) {
+    // base（1-42桁）の情報を抽出
+    result.place = extractPlaceFrom95DigitCode(base);
+    result.race_no = extractRaceNoFrom95DigitCode(base);
+    result.year = extractYearFrom95DigitCode(base);
+    result.round = extractRoundFrom95DigitCode(base);
+    result.day = extractDayFrom95DigitCode(base);
+    result.buy_method = extractBuyMethodFrom95DigitCode(base);
+    result.ticket_no = extractTicketNoFrom95DigitCode(base); // 17-22桁（発券通番）
+    result.sales_location = extractSalesLocationFrom95DigitCode(base); // 29-32桁
+    
+    // extra（43桁以降、パディング除去済み）の買い方に応じた抽出
+    if (extra.length > 0) {
       const buyMethod = result.buy_method;
       
       if (buyMethod === 0 || buyMethod === 5) {
         // 通常（0）または応援馬券（5）
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/e67fc349-a245-4c88-ae2f-a1c721dd6e3d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'qrScanner.ts:78',message:'extracting normal entries',data:{buyMethod,qrDataLength:qrData.length,qrData43_60:qrData.substring(43,61)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-        // #endregion
-        const entries = extractNormalEntries(qrData);
+        const entries = extractNormalEntries(extra, buyMethod);
         result.normal_entries = entries;
         result.total_investment = entries.reduce((sum, e) => sum + e.investment, 0);
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/e67fc349-a245-4c88-ae2f-a1c721dd6e3d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'qrScanner.ts:82',message:'normal entries result',data:{entryCount:entries.length,totalInvestment:result.total_investment,entries:entries.map(e=>({bet_type:e.bet_type,investment:e.investment}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-        // #endregion
         // 後方互換性のため、一口目の情報を設定
         if (entries.length > 0) {
           result.bet_type = entries[0].bet_type;
@@ -97,48 +110,34 @@ export const extractJRAItemsFromQR = (qrData: string): JRAQRData => {
         }
       } else if (buyMethod === 1) {
         // ボックス
-        const boxSelection = extractBoxSelection(qrData);
+        const boxSelection = extractBoxSelection(extra);
         result.box_selection = boxSelection;
         result.total_investment = boxSelection ? boxSelection.investment : null;
+        // 後方互換性のため
+        if (boxSelection) {
+          result.bet_type = boxSelection.bet_type;
+          result.investment = boxSelection.investment;
+        }
       } else if (buyMethod === 2) {
         // ながし
-        const nagashiSelection = extractNagashiSelection(qrData);
+        const nagashiSelection = extractNagashiSelection(extra);
         result.nagashi_selection = nagashiSelection;
         result.total_investment = nagashiSelection ? nagashiSelection.investment : null;
-        // ながしの場合、式別を設定（43桁目から開始）
-        if (qrData.length >= 43) {
-          const betTypeCode = qrData.charAt(42);
-          const betTypeMap: Record<string, BetType> = {
-            '1': '単勝',
-            '2': '複勝',
-            '3': '枠連',
-            '5': '馬連',
-            '6': '馬単',
-            '7': 'ワイド',
-            '8': '3連複',
-            '9': '3連単',
-          };
-          result.bet_type = betTypeMap[betTypeCode] || null;
+        // 後方互換性のため
+        if (nagashiSelection) {
+          result.bet_type = nagashiSelection.bet_type;
+          result.investment = nagashiSelection.investment;
         }
       } else if (buyMethod === 3) {
         // フォーメーション
-        const formationSelection = extractFormationSelection(qrData);
+        const formationSelection = extractFormationSelection(extra);
         result.formation_selection = formationSelection;
         result.total_investment = formationSelection ? formationSelection.investment : null;
-        // フォーメーションの場合、式別を設定（43桁目から開始）
-        if (qrData.length >= 43) {
-          const betTypeCode = qrData.charAt(42);
-          const betTypeMap: Record<string, BetType> = {
-            '1': '単勝',
-            '2': '複勝',
-            '3': '枠連',
-            '5': '馬連',
-            '6': '馬単',
-            '7': 'ワイド',
-            '8': '3連複',
-            '9': '3連単',
-          };
-          result.bet_type = betTypeMap[betTypeCode] || null;
+        // 後方互換性のため
+        if (formationSelection) {
+          // フォーメーションの場合、式別を設定（extraの先頭）
+          result.bet_type = extractBetTypeFrom95DigitCode('0'.repeat(42) + extra);
+          result.investment = formationSelection.investment;
         }
       }
       // クイックピック（4）は考慮外

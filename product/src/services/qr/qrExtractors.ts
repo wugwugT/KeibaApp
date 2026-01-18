@@ -1,5 +1,6 @@
 /**
  * QRコードから基本情報を抽出する関数群
+ * base（1-42桁）の情報を抽出
  */
 
 import type { BetType, Place } from '@/src/types/betRecord';
@@ -58,12 +59,12 @@ export const extractRaceNoFrom95DigitCode = (code: string): number | null => {
 };
 
 /**
- * 95桁の数字列から式別を抽出する
+ * 95桁の数字列から式別を抽出する（通常券・応援馬券用）
  * 
  * 43桁：式別
  * 1単勝、2複勝、3枠連、5馬連、6馬単、7ワイド、8三連複、9三連単
  * 
- * @param code - 95桁の数字列
+ * @param code - QRコードの数字列
  * @returns 式別またはnull
  */
 export const extractBetTypeFrom95DigitCode = (code: string): BetType | null => {
@@ -156,7 +157,7 @@ export const extractDayFrom95DigitCode = (code: string): number | null => {
  * 95桁の数字列から買い方を抽出する
  * 
  * 15桁：買い方
- * 0通常、1ボックス、2ながし、3フォーメーション、5応援馬券
+ * 0通常、1ボックス、2ながし、3フォーメーション、4クイックピック、5応援馬券
  * 
  * @param code - 95桁の数字列
  * @returns 買い方（0, 1, 2, 3, 5）またはnull
@@ -179,7 +180,7 @@ export const extractBuyMethodFrom95DigitCode = (code: string): number | null => 
 /**
  * 95桁の数字列から馬券番号を抽出する
  * 
- * 17-42桁：馬券番号（重複チェック用）
+ * 17-22桁：発券通番（重複チェック用）
  * 
  * @param code - 95桁の数字列
  * @returns 馬券番号（17-22桁の文字列）またはnull
@@ -195,8 +196,9 @@ export const extractTicketNoFrom95DigitCode = (code: string): string | null => {
 
 /**
  * 95桁の数字列から発売場所を抽出・変換する
- * * 29-32桁：発売場所
- * * @param code - 95桁の数字列
+ * 29-32桁：発売場所
+ * 
+ * @param code - 95桁の数字列
  * @returns 発売場所名（変換できない場合はコード、またはnull）
  */
 export const extractSalesLocationFrom95DigitCode = (code: string): string | null => {
@@ -266,28 +268,131 @@ export const extractSalesLocationFrom95DigitCode = (code: string): string | null
 };
 
 /**
- * 95桁の数字列から発売機の機番コードを抽出する
+ * パディングパターンを検出し、有効データの終端位置を返す
  * 
- * 35-43桁：発売機の機番コード（9桁）
- * 先頭2桁は30固定（ただし、ウインズなどでは異なる可能性がある）
- * 例: 302420（阪神競馬場 201号投票所 20号機）、302910（WINS梅田B館5階 27号機）
+ * パディングは「0123456789」の周期パターンで、開始位置から末尾まで
+ * 連続性が保たれているかをチェックする。
  * 
- * 参考: https://ys223.blogspot.com/2019/07/jra.html?m=1
- * 
- * @param code - 95桁の数字列
- * @returns 発売機の機番コード（35-43桁の文字列、9桁）またはnull
+ * @param data - チェックするデータ文字列
+ * @param startPos - チェック開始位置（0-indexed）
+ * @returns パディング開始位置（見つからない場合は-1）
  */
-export const extractMachineCodeFrom95DigitCode = (code: string): string | null => {
-  if (code.length < 43) return null;
+export const detectPaddingStart = (data: string, startPos: number): number => {
+  if (startPos >= data.length) return -1;
   
-  // 35-43桁目を取得（0-indexedなので34-42）
-  const machineCode = code.substring(34, 43);
+  // パディングパターンが開始される可能性のある位置を順にチェック
+  // ルール: 0123456789の周期パターンが開始された時点で、その後のすべてのデータをパディング領域として扱う
+  // パディングは「次の文字 = (現在の文字 + 1) % 10」の法則が成立する
   
-  // 機番コードは9桁の数字列（先頭が30でなくても有効な可能性がある）
-  if (/^\d{9}$/.test(machineCode)) {
-    return machineCode;
+  // パディングパターンの最小長を定義（1周期 = 10文字）
+  const MIN_PADDING_LENGTH = 10;
+  
+  // パディングは通常 '01234567890...' または '1234567890...' から始まる
+  // '0123456789...' から始まる場合を優先的にチェック（より早い位置を検出するため）
+  for (let checkPos = startPos; checkPos < data.length - MIN_PADDING_LENGTH + 1; checkPos++) {
+    if (data.charAt(checkPos) === '0') {
+      // '0123456789...' のパターンをチェック
+      let isValid = true;
+      let expectedNext = 0;
+      let consecutiveCount = 1;
+      
+      for (let i = checkPos + 1; i < data.length; i++) {
+        const current = parseInt(data.charAt(i), 10);
+        const expected = (expectedNext + 1) % 10;
+        
+        if (current === expected) {
+          consecutiveCount++;
+          expectedNext = expected;
+        } else {
+          isValid = false;
+          break;
+        }
+      }
+      
+      if (isValid && consecutiveCount >= MIN_PADDING_LENGTH) {
+        return checkPos;
+      }
+    }
   }
   
-  return null;
+  // '0123456789...' が見つからない場合、'1234567890...' をチェック
+  for (let checkPos = startPos; checkPos < data.length - MIN_PADDING_LENGTH + 1; checkPos++) {
+    if (data.charAt(checkPos) === '1') {
+      let isValid = true;
+      let expectedNext = 1;
+      let consecutiveCount = 1;
+      
+      for (let i = checkPos + 1; i < data.length; i++) {
+        const current = parseInt(data.charAt(i), 10);
+        const expected = (expectedNext + 1) % 10;
+        
+        if (current === expected) {
+          consecutiveCount++;
+          expectedNext = expected;
+        } else {
+          isValid = false;
+          break;
+        }
+      }
+      
+      if (isValid && consecutiveCount >= MIN_PADDING_LENGTH) {
+        return checkPos;
+      }
+    }
+  }
+  
+  // '1234567890...' が見つからない場合、'9012345678...' をチェック
+  for (let checkPos = startPos; checkPos < data.length - MIN_PADDING_LENGTH + 1; checkPos++) {
+    if (data.charAt(checkPos) === '9') {
+      let isValid = true;
+      let expectedNext = 9;
+      let consecutiveCount = 1;
+      
+      for (let i = checkPos + 1; i < data.length; i++) {
+        const current = parseInt(data.charAt(i), 10);
+        const expected = (expectedNext + 1) % 10;
+        
+        if (current === expected) {
+          consecutiveCount++;
+          expectedNext = expected;
+        } else {
+          isValid = false;
+          break;
+        }
+      }
+      
+      if (isValid && consecutiveCount >= MIN_PADDING_LENGTH) {
+        return checkPos;
+      }
+    }
+  }
+  
+  return -1;
 };
 
+/**
+ * base（1-42桁）とextra（43桁以降）を分離し、パディングを除去する
+ * 
+ * @param qrData - QRコードから読み取った文字列データ
+ * @returns baseとextra（パディング除去済み）のオブジェクト
+ */
+export const separateBaseAndExtra = (qrData: string): { base: string; extra: string } => {
+  if (qrData.length < 42) {
+    return { base: qrData, extra: '' };
+  }
+  
+  const base = qrData.substring(0, 42);
+  const extraWithPadding = qrData.substring(42);
+  
+  // パディング開始位置を検出
+  const paddingStart = detectPaddingStart(extraWithPadding, 0);
+  
+  if (paddingStart >= 0) {
+    // パディングが見つかった場合、その手前までをextraとする
+    const extra = extraWithPadding.substring(0, paddingStart);
+    return { base, extra };
+  }
+  
+  // パディングが見つからない場合、そのまま返す
+  return { base, extra: extraWithPadding };
+};

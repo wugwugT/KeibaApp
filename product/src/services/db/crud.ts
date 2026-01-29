@@ -255,3 +255,40 @@ export const getBetRecordsByPlace = async (place: string): Promise<BetRecord[]> 
     throw error;
   }
 };
+
+/**
+ * 指定されたIDのBetRecordを更新する
+ *
+ * @param record - 更新するレコード（id必須）
+ * @returns 更新された行数（1なら成功、0なら該当なし）
+ */
+export const updateBetRecord = async (record: BetRecord): Promise<number> => {
+  try {
+    const db = getDatabase();
+
+    const sql = `
+      UPDATE bet_records
+      SET date = ?, place = ?, race_no = ?, bet_type = ?, investment = ?, return = ?
+      WHERE id = ?
+    `;
+
+    const dateTimestamp = dateToTimestamp(record.date);
+
+    const result = await db.runAsync(
+      sql,
+      dateTimestamp,
+      record.place,
+      record.race_no,
+      record.bet_type,
+      record.investment,
+      record.return,
+      record.id
+    );
+
+    console.log('[DB] BetRecord updated:', record.id, 'changes:', result.changes);
+    return result.changes;
+  } catch (error) {
+    console.error('[DB] Error updating BetRecord:', error);
+    throw error;
+  }
+};

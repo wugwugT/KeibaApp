@@ -14,18 +14,24 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useLocalSearchParams } from 'expo-router';
 
-import { saveBetRecord } from '../services/db/crud';
+import { saveBetRecord, getBetRecordById, updateBetRecord } from '../services/db/crud';
 import { BET_TYPES } from '../constants/betTypes';
-import type { BetRecordInput, Place, BetType } from '../types/betRecord';
+import type { BetRecordInput, Place, BetType, BetRecord } from '../types/betRecord';
 import type { JRAQRData } from '../services/qr';
 
 type Props = {
-  qrData: JRAQRData | null;
+  qrData?: JRAQRData | null; // optional にして共存
 };
 
-export default function RecordEditScreen({ qrData }: Props) {
+export default function RecordEditScreen({ qrData = null }: Props) {
   const navigation = useNavigation();
+  const { id } = useLocalSearchParams<{ id?: string }>();
+
+  // ✅ idはrouter params上はstringなので、DBに渡す前にnumber化
+  const idNum = id ? Number(id) : null;
+  const isEdit = idNum !== null && !Number.isNaN(idNum);
 
   const [date, setDate] = useState<Date>(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -36,22 +42,46 @@ export default function RecordEditScreen({ qrData }: Props) {
   const [betType, setBetType] = useState<BetType | ''>('');
   const [returnAmount, setReturnAmount] = useState('0');
 
+  // ===== 編集モード：idから既存データ読み込み =====
   useEffect(() => {
+    if (!isEdit || idNum === null) return;
+
+    (async () => {
+      try {
+        const record = await getBetRecordById(idNum);
+        if (!record) {
+          Alert.alert('エラー', '対象データが見つかりませんでした');
+          navigation.goBack();
+          return;
+        }
+
+        // フォームへ反映
+        setDate(record.date);
+        setPlace(record.place);
+        setRaceNo(String(record.race_no));
+        setInvestment(String(record.investment));
+        setBetType(record.bet_type);
+        setReturnAmount(String(record.return));
+      } catch {
+        Alert.alert('エラー', 'データの読み込みに失敗しました');
+      }
+    })();
+  }, [isEdit, idNum, navigation]);
+
+  // ===== 新規モード：QRデータ反映（従来通り） =====
+  useEffect(() => {
+    if (isEdit) return; // 編集中はQR反映しない
     if (!qrData) return;
 
     setDate(new Date());
     setPlace((qrData.place as Place) ?? '');
     setRaceNo(qrData.race_no ? String(qrData.race_no) : '');
-    setInvestment(
-      qrData.total_investment
-        ? String(qrData.total_investment)
-        : ''
-    );
+    setInvestment(qrData.total_investment ? String(qrData.total_investment) : '');
 
     if (qrData.bet_type) {
       setBetType(qrData.bet_type as BetType);
     }
-  }, [qrData]);
+  }, [qrData, isEdit]);
 
   const handleSave = async () => {
     if (!place || !raceNo || !investment || !betType) {
@@ -59,21 +89,45 @@ export default function RecordEditScreen({ qrData }: Props) {
       return;
     }
 
-    const input: BetRecordInput = {
-      date,
-      place,
-      race_no: Number(raceNo),
-      bet_type: betType,
-      investment: Number(investment),
-      return: Number(returnAmount),
-    };
-
     try {
+      if (isEdit && idNum !== null) {
+        // ===== 更新 =====
+        const updated: BetRecord = {
+          id: idNum, // ✅ number
+          date,
+          place: place as Place,
+          race_no: Number(raceNo),
+          bet_type: betType as BetType,
+          investment: Number(investment),
+          return: Number(returnAmount),
+        };
+
+        const changes = await updateBetRecord(updated);
+        if (changes === 0) {
+          Alert.alert('エラー', '更新対象が見つかりませんでした');
+          return;
+        }
+
+        Alert.alert('更新完了', '収支を更新しました');
+        navigation.goBack();
+        return;
+      }
+
+      // ===== 新規保存 =====
+      const input: BetRecordInput = {
+        date,
+        place: place as Place,
+        race_no: Number(raceNo),
+        bet_type: betType as BetType,
+        investment: Number(investment),
+        return: Number(returnAmount),
+      };
+
       await saveBetRecord(input);
       Alert.alert('登録完了', '収支を保存しました');
       navigation.goBack();
     } catch {
-      Alert.alert('エラー', '保存に失敗しました');
+      Alert.alert('エラー', isEdit ? '更新に失敗しました' : '保存に失敗しました');
     }
   };
 
@@ -84,7 +138,9 @@ export default function RecordEditScreen({ qrData }: Props) {
         style={{ flex: 1 }}
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          <Text style={styles.title}>馬券内容の確認・登録</Text>
+          <Text style={styles.title}>
+            {isEdit ? '馬券内容の編集' : '馬券内容の確認・登録'}
+          </Text>
 
           {/* 日付 */}
           <Text style={styles.label}>日付</Text>
@@ -208,12 +264,13 @@ export default function RecordEditScreen({ qrData }: Props) {
 
         <View style={styles.footer}>
           <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-            <Text style={styles.saveButtonText}>登録する</Text>
+            <Text style={styles.saveButtonText}>
+              {isEdit ? '更新する' : '登録する'}
+            </Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
 
-      {/* ✅ DatePicker（ライト固定 + 日本語） */}
       <Modal transparent visible={showDatePicker} animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>

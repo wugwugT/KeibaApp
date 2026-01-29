@@ -1,11 +1,12 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { BetRecord } from '../../types/betRecord';
 
 type Props = {
   record: BetRecord;
+  onPress?: () => void; // ← 追加
 };
 
-export const BetRecordCard = ({ record }: Props) => {
+export const BetRecordCard = ({ record, onPress }: Props) => {
   const profit = record.return - record.investment;
 
   const profitColor =
@@ -13,11 +14,15 @@ export const BetRecordCard = ({ record }: Props) => {
     profit < 0 ? '#e74c3c' :
     '#7f8c8d';
 
-  return (
+  const content = (
     <View style={styles.card}>
       <View style={styles.header}>
         <Text style={styles.date}>
-          {record.date.toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' })}　{record.place} {record.race_no}R
+          {record.date.toLocaleDateString('ja-JP', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+          })}　{record.place} {record.race_no}R
         </Text>
       </View>
 
@@ -30,6 +35,21 @@ export const BetRecordCard = ({ record }: Props) => {
         投資: {record.investment.toLocaleString()}円
       </Text>
     </View>
+  );
+
+  // onPress が渡されていない場合は、今まで通りただ表示
+  if (!onPress) {
+    return content;
+  }
+
+  // onPress がある場合だけタップ可能にする
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}
+    >
+      {content}
+    </Pressable>
   );
 };
 

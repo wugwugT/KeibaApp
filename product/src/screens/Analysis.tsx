@@ -8,8 +8,10 @@ import { useBetTypeStats } from '@/src/hooks/useBetTypeStats';
 import { useRaceNoStats } from '@/src/hooks/useRaceNoStats';
 import { useDailyTrend } from '@/src/hooks/useDailyTrend';
 import { useCumulativeProfit } from '@/src/hooks/useCumulativeProfit';
+import { useBestWorst } from '@/src/hooks/useBestWorst';
 
 import { PlaceBarChart } from '@/src/components/analysis/PlaceBarChart';
+import { CumulativeLineChart } from '@/src/components/analysis/CumulativeLineChart';
 
 type Mode = 'place' | 'betType' | 'raceNo' | 'trend' | 'cumulative';
 
@@ -44,6 +46,9 @@ export const Analysis = () => {
   const dailyTrend = useDailyTrend();
   const cumulative = useCumulativeProfit();
 
+  // ✅ ANA-006
+  const { best, worst } = useBestWorst();
+
   const data: Row[] = useMemo(() => {
     if (mode === 'trend' || mode === 'cumulative') return [];
 
@@ -77,7 +82,6 @@ export const Analysis = () => {
 
   const trend: TrendRow[] = useMemo(() => {
     if (mode !== 'trend') return [];
-
     // ✅ 新しい日付が上に来る（降順）
     return [...dailyTrend].sort((a, b) => {
       if (a.date < b.date) return 1;
@@ -88,7 +92,6 @@ export const Analysis = () => {
 
   const cumulativeRows: CumulativeRow[] = useMemo(() => {
     if (mode !== 'cumulative') return [];
-
     // useCumulativeProfit 側は日付昇順の想定なので、表示は降順にする
     return [...cumulative].sort((a, b) => {
       if (a.date < b.date) return 1;
@@ -129,12 +132,6 @@ export const Analysis = () => {
     return Math.max(...trend.map((t) => Math.abs(t.profit)), 1);
   }, [mode, trend]);
 
-  // 累積バー用の最大値（見た目スケール）
-  const cumMaxAbs = useMemo(() => {
-    if (mode !== 'cumulative') return 1;
-    return Math.max(...cumulativeRows.map((c) => Math.abs(c.cumulativeProfit)), 1);
-  }, [mode, cumulativeRows]);
-
   const Segment = (
     <View style={styles.segment}>
       <TouchableOpacity
@@ -165,6 +162,30 @@ export const Analysis = () => {
     </View>
   );
 
+  // ✅ ANA-006 表示ブロック（共通）
+  const BestWorstBlock =
+    best && worst ? (
+      <ThemedView style={{ gap: 10 }}>
+        <ThemedText type="subtitle">ベスト / ワースト（日別）</ThemedText>
+
+        <ThemedView style={[styles.card, styles.bestCard]}>
+          <ThemedText type="subtitle">🏆 ベスト</ThemedText>
+          <ThemedText>{best.date}</ThemedText>
+          <ThemedText style={{ color: '#4CAF50' }}>収支: +{best.profit}円</ThemedText>
+          <ThemedText>回収率: {best.recoveryRate}%</ThemedText>
+          <ThemedText>投資: {best.investment}円 / 回収: {best.return}円</ThemedText>
+        </ThemedView>
+
+        <ThemedView style={[styles.card, styles.worstCard]}>
+          <ThemedText type="subtitle">💀 ワースト</ThemedText>
+          <ThemedText>{worst.date}</ThemedText>
+          <ThemedText style={{ color: '#F44336' }}>収支: {worst.profit}円</ThemedText>
+          <ThemedText>回収率: {worst.recoveryRate}%</ThemedText>
+          <ThemedText>投資: {worst.investment}円 / 回収: {worst.return}円</ThemedText>
+        </ThemedView>
+      </ThemedView>
+    ) : null;
+
   // ===== 日別（ANA-004） =====
   if (mode === 'trend') {
     return (
@@ -176,9 +197,13 @@ export const Analysis = () => {
           <ThemedView style={{ gap: 12 }}>
             <ThemedText type="title">Analysis</ThemedText>
             {Segment}
+            {BestWorstBlock}
+
             <ThemedView style={styles.chartCard}>
               <ThemedText type="subtitle">{headerTitle}</ThemedText>
-              <ThemedText style={{ opacity: 0.8 }}>日別の収支と回収率を確認できます</ThemedText>
+              <ThemedText style={{ opacity: 0.8 }}>
+                日別の収支と回収率を確認できます
+              </ThemedText>
             </ThemedView>
           </ThemedView>
         }
@@ -210,7 +235,7 @@ export const Analysis = () => {
     );
   }
 
-  // ===== 累積（ANA-005） =====
+  // ===== 累積（ANA-005：折れ線） =====
   if (mode === 'cumulative') {
     return (
       <FlatList
@@ -221,28 +246,27 @@ export const Analysis = () => {
           <ThemedView style={{ gap: 12 }}>
             <ThemedText type="title">Analysis</ThemedText>
             {Segment}
+            {BestWorstBlock}
+
             <ThemedView style={styles.chartCard}>
               <ThemedText type="subtitle">{headerTitle}</ThemedText>
               <ThemedText style={{ opacity: 0.8 }}>
-                日々の収支を積み上げた「累積収支」の推移です
+                日々の収支を積み上げた「累積収支」の推移です（折れ線）
               </ThemedText>
             </ThemedView>
+
+            <CumulativeLineChart data={cumulativeRows} />
           </ThemedView>
         }
         renderItem={({ item }) => {
-          const color = item.cumulativeProfit >= 0 ? '#4CAF50' : '#F44336';
-          const widthPct = Math.min(100, (Math.abs(item.cumulativeProfit) / cumMaxAbs) * 100);
+          const dailyColor = item.dailyProfit >= 0 ? '#4CAF50' : '#F44336';
+          const cumColor = item.cumulativeProfit >= 0 ? '#4CAF50' : '#F44336';
 
           return (
             <ThemedView style={styles.card}>
               <ThemedText type="subtitle">{item.date}</ThemedText>
-
-              <View style={styles.trendBarBg}>
-                <View style={[styles.trendBar, { width: `${widthPct}%`, backgroundColor: color }]} />
-              </View>
-
-              <ThemedText>日次収支: {item.dailyProfit}円</ThemedText>
-              <ThemedText style={{ color }}>累積収支: {item.cumulativeProfit}円</ThemedText>
+              <ThemedText style={{ color: dailyColor }}>日次収支: {item.dailyProfit}円</ThemedText>
+              <ThemedText style={{ color: cumColor }}>累積収支: {item.cumulativeProfit}円</ThemedText>
             </ThemedView>
           );
         }}
@@ -260,6 +284,8 @@ export const Analysis = () => {
         <ThemedView style={{ gap: 12 }}>
           <ThemedText type="title">Analysis</ThemedText>
           {Segment}
+          {BestWorstBlock}
+
           <ThemedView style={styles.chartCard}>
             <ThemedText type="subtitle">{headerTitle}</ThemedText>
             <PlaceBarChart
@@ -314,4 +340,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.12)',
   },
   trendBar: { height: 10, borderRadius: 999 },
+
+  bestCard: {
+    borderWidth: 1,
+    borderColor: 'rgba(76,175,80,0.6)',
+  },
+  worstCard: {
+    borderWidth: 1,
+    borderColor: 'rgba(244,67,54,0.6)',
+  },
 });

@@ -162,26 +162,34 @@ export const Analysis = () => {
     </View>
   );
 
-  // ✅ ANA-006 表示ブロック（共通）
+  // ✅ ANA-006 表示ブロック（角丸セクション化）
   const BestWorstBlock =
     best && worst ? (
-      <ThemedView style={{ gap: 10 }}>
+      <ThemedView style={styles.sectionCard}>
         <ThemedText type="subtitle">ベスト / ワースト（日別）</ThemedText>
 
-        <ThemedView style={[styles.card, styles.bestCard]}>
+        <ThemedView style={[styles.innerCard, styles.bestCard]}>
           <ThemedText type="subtitle">🏆 ベスト</ThemedText>
           <ThemedText>{best.date}</ThemedText>
-          <ThemedText style={{ color: '#4CAF50' }}>収支: +{best.profit}円</ThemedText>
+          <ThemedText style={{ color: '#4CAF50' }}>
+            収支: +{best.profit}円
+          </ThemedText>
           <ThemedText>回収率: {best.recoveryRate}%</ThemedText>
-          <ThemedText>投資: {best.investment}円 / 回収: {best.return}円</ThemedText>
+          <ThemedText>
+            投資: {best.investment}円 / 回収: {best.return}円
+          </ThemedText>
         </ThemedView>
 
-        <ThemedView style={[styles.card, styles.worstCard]}>
+        <ThemedView style={[styles.innerCard, styles.worstCard]}>
           <ThemedText type="subtitle">💀 ワースト</ThemedText>
           <ThemedText>{worst.date}</ThemedText>
-          <ThemedText style={{ color: '#F44336' }}>収支: {worst.profit}円</ThemedText>
+          <ThemedText style={{ color: '#F44336' }}>
+            収支: {worst.profit}円
+          </ThemedText>
           <ThemedText>回収率: {worst.recoveryRate}%</ThemedText>
-          <ThemedText>投資: {worst.investment}円 / 回収: {worst.return}円</ThemedText>
+          <ThemedText>
+            投資: {worst.investment}円 / 回収: {worst.return}円
+          </ThemedText>
         </ThemedView>
       </ThemedView>
     ) : null;
@@ -194,22 +202,28 @@ export const Analysis = () => {
         keyExtractor={(item) => item.date}
         contentContainerStyle={styles.list}
         ListHeaderComponent={
-          <ThemedView style={{ gap: 12 }}>
-            <ThemedText type="title">Analysis</ThemedText>
-            {Segment}
-            {BestWorstBlock}
+          // ✅ ここが「下敷きグレー面」：角丸にする
+          <ThemedView style={styles.headerCard}>
+            <ThemedView style={{ gap: 12 }}>
+              <ThemedText type="title">Analysis</ThemedText>
+              {Segment}
+              {BestWorstBlock}
 
-            <ThemedView style={styles.chartCard}>
-              <ThemedText type="subtitle">{headerTitle}</ThemedText>
-              <ThemedText style={{ opacity: 0.8 }}>
-                日別の収支と回収率を確認できます
-              </ThemedText>
+              <ThemedView style={styles.chartCard}>
+                <ThemedText type="subtitle">{headerTitle}</ThemedText>
+                <ThemedText style={{ opacity: 0.8 }}>
+                  日別の収支と回収率を確認できます
+                </ThemedText>
+              </ThemedView>
             </ThemedView>
           </ThemedView>
         }
         renderItem={({ item }) => {
           const profitColor = item.profit >= 0 ? '#4CAF50' : '#F44336';
-          const widthPct = Math.min(100, (Math.abs(item.profit) / trendMaxAbsProfit) * 100);
+          const widthPct = Math.min(
+            100,
+            (Math.abs(item.profit) / trendMaxAbsProfit) * 100
+          );
 
           return (
             <ThemedView style={styles.card}>
@@ -226,7 +240,9 @@ export const Analysis = () => {
 
               <ThemedText>投資: {item.investment}円</ThemedText>
               <ThemedText>回収: {item.return}円</ThemedText>
-              <ThemedText style={{ color: profitColor }}>収支: {item.profit}円</ThemedText>
+              <ThemedText style={{ color: profitColor }}>
+                収支: {item.profit}円
+              </ThemedText>
               <ThemedText>回収率: {item.recoveryRate}%</ThemedText>
             </ThemedView>
           );
@@ -243,19 +259,22 @@ export const Analysis = () => {
         keyExtractor={(item) => item.date}
         contentContainerStyle={styles.list}
         ListHeaderComponent={
-          <ThemedView style={{ gap: 12 }}>
-            <ThemedText type="title">Analysis</ThemedText>
-            {Segment}
-            {BestWorstBlock}
+          // ✅ ここが「下敷きグレー面」：角丸にする
+          <ThemedView style={styles.headerCard}>
+            <ThemedView style={{ gap: 12 }}>
+              <ThemedText type="title">Analysis</ThemedText>
+              {Segment}
+              {BestWorstBlock}
 
-            <ThemedView style={styles.chartCard}>
-              <ThemedText type="subtitle">{headerTitle}</ThemedText>
-              <ThemedText style={{ opacity: 0.8 }}>
-                日々の収支を積み上げた「累積収支」の推移です（折れ線）
-              </ThemedText>
+              <ThemedView style={styles.chartCard}>
+                <ThemedText type="subtitle">{headerTitle}</ThemedText>
+                <ThemedText style={{ opacity: 0.8 }}>
+                  日々の収支を積み上げた「累積収支」の推移です（折れ線）
+                </ThemedText>
+              </ThemedView>
+
+              <CumulativeLineChart data={cumulativeRows} />
             </ThemedView>
-
-            <CumulativeLineChart data={cumulativeRows} />
           </ThemedView>
         }
         renderItem={({ item }) => {
@@ -265,8 +284,12 @@ export const Analysis = () => {
           return (
             <ThemedView style={styles.card}>
               <ThemedText type="subtitle">{item.date}</ThemedText>
-              <ThemedText style={{ color: dailyColor }}>日次収支: {item.dailyProfit}円</ThemedText>
-              <ThemedText style={{ color: cumColor }}>累積収支: {item.cumulativeProfit}円</ThemedText>
+              <ThemedText style={{ color: dailyColor }}>
+                日次収支: {item.dailyProfit}円
+              </ThemedText>
+              <ThemedText style={{ color: cumColor }}>
+                累積収支: {item.cumulativeProfit}円
+              </ThemedText>
             </ThemedView>
           );
         }}
@@ -281,22 +304,25 @@ export const Analysis = () => {
       keyExtractor={(item) => item.key}
       contentContainerStyle={styles.list}
       ListHeaderComponent={
-        <ThemedView style={{ gap: 12 }}>
-          <ThemedText type="title">Analysis</ThemedText>
-          {Segment}
-          {BestWorstBlock}
+        // ✅ ここが「下敷きグレー面」：角丸にする
+        <ThemedView style={styles.headerCard}>
+          <ThemedView style={{ gap: 12 }}>
+            <ThemedText type="title">Analysis</ThemedText>
+            {Segment}
+            {BestWorstBlock}
 
-          <ThemedView style={styles.chartCard}>
-            <ThemedText type="subtitle">{headerTitle}</ThemedText>
-            <PlaceBarChart
-              data={data.map((d) => ({
-                place: d.key,
-                investment: d.investment,
-                return: d.return,
-                profit: d.profit,
-                recoveryRate: d.recoveryRate,
-              }))}
-            />
+            <ThemedView style={styles.chartCard}>
+              <ThemedText type="subtitle">{headerTitle}</ThemedText>
+              <PlaceBarChart
+                data={data.map((d) => ({
+                  place: d.key,
+                  investment: d.investment,
+                  return: d.return,
+                  profit: d.profit,
+                  recoveryRate: d.recoveryRate,
+                }))}
+              />
+            </ThemedView>
           </ThemedView>
         </ThemedView>
       }
@@ -317,9 +343,40 @@ export const Analysis = () => {
 };
 
 const styles = StyleSheet.create({
+  // ✅ FlatList全体の余白は従来通り（カード分離は維持）
   list: { padding: 16, gap: 12 },
-  card: { padding: 12, borderRadius: 12, marginTop: 12 },
+
+  // ✅ 「Analysis〜グラフまでの下敷きグレー面」を角丸にする
+  headerCard: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginBottom: 12, // 下のカードと分離
+    padding: 16, // 下敷き面の内側余白
+    // 仕上げに薄い枠が欲しければ有効化（好み）
+    // borderWidth: 1,
+    // borderColor: 'rgba(255,255,255,0.06)',
+  },
+
+  // リストの各行カード
+  card: { padding: 12, borderRadius: 12 },
+
+  // 上部のチャート用カード
   chartCard: { padding: 12, borderRadius: 12 },
+
+  // ✅ ベスト/ワースト全体を「角丸の大カード」にする
+  sectionCard: {
+    padding: 12,
+    borderRadius: 16,
+    overflow: 'hidden',
+    gap: 10,
+  },
+
+  // セクション内の小カード
+  innerCard: {
+    padding: 12,
+    borderRadius: 12,
+  },
+
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
   segment: { flexDirection: 'row', gap: 8 },

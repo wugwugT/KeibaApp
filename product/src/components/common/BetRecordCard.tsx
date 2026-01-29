@@ -1,12 +1,15 @@
 import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { useTheme } from '@react-navigation/native';
 import { BetRecord } from '../../types/betRecord';
 
 type Props = {
   record: BetRecord;
-  onPress?: () => void; // ← 追加
+  onPress?: () => void;
 };
 
 export const BetRecordCard = ({ record, onPress }: Props) => {
+  const { colors, dark } = useTheme();
+
   const profit = record.return - record.investment;
 
   const profitColor =
@@ -14,15 +17,29 @@ export const BetRecordCard = ({ record, onPress }: Props) => {
     profit < 0 ? '#e74c3c' :
     '#7f8c8d';
 
+  // ダーク/ライトで薄い文字の見え方を調整（themeに無いので自前で）
+  const subTextColor = dark ? 'rgba(255,255,255,0.75)' : 'rgba(0,0,0,0.6)';
+
   const content = (
-    <View style={styles.card}>
+    <View
+      style={[
+        styles.card,
+        {
+          backgroundColor: colors.card,
+          // darkでは影が汚くなりがちなので抑える
+          shadowColor: dark ? 'transparent' : '#000',
+          borderColor: dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+        },
+      ]}
+    >
       <View style={styles.header}>
-        <Text style={styles.date}>
+        <Text style={[styles.date, { color: subTextColor }]}>
           {record.date.toLocaleDateString('ja-JP', {
             year: 'numeric',
             month: '2-digit',
             day: '2-digit',
-          })}　{record.place} {record.race_no}R
+          })}{' '}
+          　{record.place} {record.race_no}R
         </Text>
       </View>
 
@@ -31,18 +48,14 @@ export const BetRecordCard = ({ record, onPress }: Props) => {
         {profit.toLocaleString()}円
       </Text>
 
-      <Text style={styles.investment}>
+      <Text style={[styles.investment, { color: subTextColor }]}>
         投資: {record.investment.toLocaleString()}円
       </Text>
     </View>
   );
 
-  // onPress が渡されていない場合は、今まで通りただ表示
-  if (!onPress) {
-    return content;
-  }
+  if (!onPress) return content;
 
-  // onPress がある場合だけタップ可能にする
   return (
     <Pressable
       onPress={onPress}
@@ -55,22 +68,26 @@ export const BetRecordCard = ({ record, onPress }: Props) => {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
     marginVertical: 8,
     marginHorizontal: 16,
-    shadowColor: '#000',
+
+    // 影（iOS）
     shadowOpacity: 0.1,
     shadowRadius: 6,
+
+    // 影（Android）
     elevation: 3,
+
+    // darkでの見やすさ用（薄い枠）
+    borderWidth: 1,
   },
   header: {
     marginBottom: 8,
   },
   date: {
     fontSize: 14,
-    color: '#555',
   },
   profit: {
     fontSize: 24,
@@ -79,6 +96,5 @@ const styles = StyleSheet.create({
   },
   investment: {
     fontSize: 14,
-    color: '#777',
   },
 });

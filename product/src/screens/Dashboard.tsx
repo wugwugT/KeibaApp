@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useTheme } from '@react-navigation/native';
 import { router } from 'expo-router';
 
 import { BetRecord } from '../types/betRecord';
@@ -24,6 +24,8 @@ const toYMD = (d: Date) => {
 };
 
 export const Dashboard = () => {
+  const { colors, dark } = useTheme();
+
   const [records, setRecords] = useState<BetRecord[]>([]);
   const [filter, setFilter] = useState<FilterType>('all');
 
@@ -73,7 +75,6 @@ export const Dashboard = () => {
     const recoveryRate =
       totalInvestment === 0 ? 0 : Math.round((totalReturn / totalInvestment) * 100);
 
-    // 日別集計（勝率と平均日次収支用）
     const dayMap: Record<string, { investment: number; ret: number }> = {};
     for (const r of filteredRecords) {
       const key = toYMD(r.date);
@@ -101,11 +102,17 @@ export const Dashboard = () => {
     };
   }, [filteredRecords]);
 
+  // “勝ち/負け”色はそのままでもOK（ただしダークで彩度強すぎたら調整）
   const profitColor = summary.totalProfit >= 0 ? '#2ecc71' : '#e74c3c';
   const avgColor = summary.avgDailyProfit >= 0 ? '#2ecc71' : '#e74c3c';
 
+  // ダーク/ライトで見やすい “カード内の薄い面” を自前で用意
+  const subtleCard = dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)';
+  const chipBg = dark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.08)';
+  const chipActiveBg = dark ? 'rgba(255,255,255,0.18)' : '#2c3e50';
+
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <FlatList
         data={filteredRecords}
         keyExtractor={(item) => String(item.id)}
@@ -123,8 +130,18 @@ export const Dashboard = () => {
         ListHeaderComponent={
           <>
             {/* ===== ANA-007: サマリー ===== */}
-            <View style={styles.summaryCard}>
-              <Text style={styles.summaryTitle}>収支サマリー</Text>
+            <View
+              style={[
+                styles.summaryCard,
+                {
+                  backgroundColor: colors.card,
+                  shadowColor: dark ? 'transparent' : '#000',
+                },
+              ]}
+            >
+              <Text style={[styles.summaryTitle, { color: colors.text }]}>
+                収支サマリー
+              </Text>
 
               <Text style={[styles.summaryProfit, { color: profitColor }]}>
                 {summary.totalProfit >= 0 ? '+' : ''}
@@ -132,61 +149,70 @@ export const Dashboard = () => {
               </Text>
 
               <View style={styles.summarySubRow}>
-                <Text style={styles.summarySubText}>
+                <Text style={[styles.summarySubText, { color: colors.text }]}>
                   投資: {summary.totalInvestment.toLocaleString()}円
                 </Text>
-                <Text style={styles.summarySubText}>
+                <Text style={[styles.summarySubText, { color: colors.text }]}>
                   回収: {summary.totalReturn.toLocaleString()}円
                 </Text>
               </View>
 
               <View style={styles.summaryGrid}>
-                <View style={styles.statCard}>
-                  <Text style={styles.statLabel}>回収率</Text>
-                  <Text style={styles.statValue}>{summary.recoveryRate}%</Text>
+                <View style={[styles.statCard, { backgroundColor: subtleCard }]}>
+                  <Text style={[styles.statLabel, { color: colors.text }]}>回収率</Text>
+                  <Text style={[styles.statValue, { color: colors.text }]}>
+                    {summary.recoveryRate}%
+                  </Text>
                 </View>
 
-                <View style={styles.statCard}>
-                  <Text style={styles.statLabel}>勝率（日別）</Text>
-                  <Text style={styles.statValue}>{summary.winRate}%</Text>
+                <View style={[styles.statCard, { backgroundColor: subtleCard }]}>
+                  <Text style={[styles.statLabel, { color: colors.text }]}>勝率（日別）</Text>
+                  <Text style={[styles.statValue, { color: colors.text }]}>
+                    {summary.winRate}%
+                  </Text>
                 </View>
 
-                <View style={styles.statCard}>
-                  <Text style={styles.statLabel}>平均日次収支</Text>
+                <View style={[styles.statCard, { backgroundColor: subtleCard }]}>
+                  <Text style={[styles.statLabel, { color: colors.text }]}>平均日次収支</Text>
                   <Text style={[styles.statValue, { color: avgColor }]}>
                     {summary.avgDailyProfit >= 0 ? '+' : ''}
                     {summary.avgDailyProfit.toLocaleString()}円
                   </Text>
                 </View>
 
-                <View style={styles.statCard}>
-                  <Text style={styles.statLabel}>対象日数</Text>
-                  <Text style={styles.statValue}>{summary.days}日</Text>
+                <View style={[styles.statCard, { backgroundColor: subtleCard }]}>
+                  <Text style={[styles.statLabel, { color: colors.text }]}>対象日数</Text>
+                  <Text style={[styles.statValue, { color: colors.text }]}>
+                    {summary.days}日
+                  </Text>
                 </View>
               </View>
             </View>
 
             {/* ===== フィルタ ===== */}
             <View style={styles.filterRow}>
-              {(['all', 'today', 'month'] as FilterType[]).map((key) => (
-                <TouchableOpacity
-                  key={key}
-                  style={[
-                    styles.filterButton,
-                    filter === key && styles.filterButtonActive,
-                  ]}
-                  onPress={() => setFilter(key)}
-                >
-                  <Text
+              {(['all', 'today', 'month'] as FilterType[]).map((key) => {
+                const active = filter === key;
+                return (
+                  <TouchableOpacity
+                    key={key}
                     style={[
-                      styles.filterText,
-                      filter === key && styles.filterTextActive,
+                      styles.filterButton,
+                      { backgroundColor: active ? chipActiveBg : chipBg },
                     ]}
+                    onPress={() => setFilter(key)}
                   >
-                    {key === 'all' ? '全期間' : key === 'today' ? '今日' : '今月'}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                    <Text
+                      style={[
+                        styles.filterText,
+                        { color: active ? '#fff' : colors.text },
+                      ]}
+                    >
+                      {key === 'all' ? '全期間' : key === 'today' ? '今日' : '今月'}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </>
         }
@@ -194,8 +220,14 @@ export const Dashboard = () => {
       />
 
       {/* ===== ＋ボタン（Scanner起動） ===== */}
-      <TouchableOpacity style={styles.fab} onPress={() => router.push('/scanner')}>
-        <Text style={styles.fabText}>＋</Text>
+      <TouchableOpacity
+        style={[
+          styles.fab,
+          { backgroundColor: dark ? 'rgba(255,255,255,0.12)' : '#000' },
+        ]}
+        onPress={() => router.push('/scanner')}
+      >
+        <Text style={[styles.fabText, { color: '#fff' }]}>＋</Text>
       </TouchableOpacity>
     </SafeAreaView>
   );
@@ -204,16 +236,13 @@ export const Dashboard = () => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f2f2f2',
   },
 
   // ===== サマリー =====
   summaryCard: {
-    backgroundColor: '#fff',
     margin: 16,
     padding: 16,
     borderRadius: 12,
-    shadowColor: '#000',
     shadowOpacity: 0.1,
     shadowRadius: 6,
     elevation: 3,
@@ -236,7 +265,7 @@ const styles = StyleSheet.create({
   },
   summarySubText: {
     fontSize: 13,
-    color: '#555',
+    opacity: 0.8,
   },
 
   summaryGrid: {
@@ -248,17 +277,15 @@ const styles = StyleSheet.create({
     width: '48%',
     padding: 12,
     borderRadius: 12,
-    backgroundColor: '#f7f7f7',
   },
   statLabel: {
     fontSize: 12,
-    color: '#666',
+    opacity: 0.75,
     marginBottom: 6,
   },
   statValue: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#111',
   },
 
   // ===== フィルタ =====
@@ -271,17 +298,9 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 16,
-    backgroundColor: '#ddd',
-  },
-  filterButtonActive: {
-    backgroundColor: '#2c3e50',
   },
   filterText: {
     fontSize: 14,
-    color: '#333',
-  },
-  filterTextActive: {
-    color: '#fff',
   },
 
   /** ＋ボタン */
@@ -292,13 +311,11 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#000',
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 6,
   },
   fabText: {
-    color: '#fff',
     fontSize: 32,
     lineHeight: 36,
   },

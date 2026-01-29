@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Platform,
   ScrollView,
   Modal,
+  useColorScheme,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -28,6 +29,36 @@ type Props = {
 export default function RecordEditScreen({ qrData = null }: Props) {
   const navigation = useNavigation();
   const { id } = useLocalSearchParams<{ id?: string }>();
+
+  const scheme = useColorScheme();
+  const isDark = scheme === 'dark';
+
+  const colors = useMemo(
+    () => ({
+      bg: isDark ? '#0B0B0B' : '#FFFFFF',
+      text: isDark ? '#F2F2F2' : '#111111',
+      subText: isDark ? '#BDBDBD' : '#555555',
+      border: isDark ? 'rgba(255,255,255,0.18)' : '#CCCCCC',
+      inputBg: isDark ? '#141414' : '#FFFFFF',
+      cardBg: isDark ? '#141414' : '#F5F5F5',
+      innerCardBg: isDark ? '#1A1A1A' : '#FFFFFF',
+      footerBg: isDark ? '#0B0B0B' : '#FFFFFF',
+      footerBorder: isDark ? 'rgba(255,255,255,0.10)' : '#EEEEEE',
+
+      // ✅ ボタンが背景に沈まないように、ダーク時は少し明るい面にする
+      primary: isDark ? '#232323' : '#000000',
+      primaryText: '#FFFFFF',
+      // ✅ ボタンの境界を出す
+      primaryBorder: isDark ? 'rgba(255,255,255,0.22)' : 'transparent',
+
+      chipBorder: isDark ? 'rgba(255,255,255,0.25)' : '#AAAAAA',
+      chipBgSelected: isDark ? '#F2F2F2' : '#000000',
+      chipTextSelected: isDark ? '#000000' : '#FFFFFF',
+      overlay: 'rgba(0,0,0,0.35)',
+      modalBg: isDark ? '#141414' : '#FFFFFF',
+    }),
+    [isDark]
+  );
 
   // ✅ idはrouter params上はstringなので、DBに渡す前にnumber化
   const idNum = id ? Number(id) : null;
@@ -132,61 +163,109 @@ export default function RecordEditScreen({ qrData = null }: Props) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.bg }]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          <Text style={styles.title}>
+        <ScrollView
+          contentContainerStyle={[styles.scrollContent, { backgroundColor: colors.bg }]}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Text style={[styles.title, { color: colors.text }]}>
             {isEdit ? '馬券内容の編集' : '馬券内容の確認・登録'}
           </Text>
 
           {/* 日付 */}
-          <Text style={styles.label}>日付</Text>
+          <Text style={[styles.label, { color: colors.subText }]}>日付</Text>
           <TouchableOpacity
-            style={styles.input}
+            style={[
+              styles.input,
+              {
+                backgroundColor: colors.inputBg,
+                borderColor: colors.border,
+              },
+            ]}
             onPress={() => setShowDatePicker(true)}
           >
-            <Text>{date.toLocaleDateString('ja-JP')}</Text>
+            <Text style={{ color: colors.text }}>{date.toLocaleDateString('ja-JP')}</Text>
           </TouchableOpacity>
 
-          <Text style={styles.label}>開催場</Text>
+          <Text style={[styles.label, { color: colors.subText }]}>開催場</Text>
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input,
+              { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text },
+            ]}
             value={place}
             onChangeText={(v) => setPlace(v as Place)}
+            placeholder="例：東京"
+            placeholderTextColor={colors.subText}
           />
 
-          <Text style={styles.label}>レース番号</Text>
+          <Text style={[styles.label, { color: colors.subText }]}>レース番号</Text>
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input,
+              { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text },
+            ]}
             value={raceNo}
             onChangeText={setRaceNo}
             keyboardType="number-pad"
+            placeholder="例：11"
+            placeholderTextColor={colors.subText}
           />
 
-          <Text style={styles.label}>投資額（円）</Text>
+          <Text style={[styles.label, { color: colors.subText }]}>投資額（円）</Text>
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input,
+              { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text },
+            ]}
             value={investment}
             onChangeText={setInvestment}
             keyboardType="number-pad"
+            placeholder="例：1000"
+            placeholderTextColor={colors.subText}
           />
 
           {/* 複合馬券の各口を表示 */}
           {qrData?.normal_entries && qrData.normal_entries.length > 1 && (
-            <View style={styles.entriesContainer}>
-              <Text style={styles.label}>各口の情報（{qrData.normal_entries.length}口）</Text>
+            <View style={[styles.entriesContainer, { backgroundColor: colors.cardBg }]}>
+              <Text style={[styles.label, { color: colors.subText, marginTop: 0 }]}>
+                各口の情報（{qrData.normal_entries.length}口）
+              </Text>
+
               {qrData.normal_entries.map((entry, index) => (
-                <View key={index} style={styles.entryContainer}>
-                  <Text style={styles.entryTitle}>口{index + 1}</Text>
-                  <Text style={styles.entryText}>式別: {entry.bet_type}</Text>
-                  {entry.first_place && <Text style={styles.entryText}>1着: {entry.first_place}番</Text>}
-                  {entry.second_place && <Text style={styles.entryText}>2着: {entry.second_place}番</Text>}
-                  {entry.third_place && <Text style={styles.entryText}>3着: {entry.third_place}番</Text>}
-                  {entry.bet_type === '馬単' && entry.ura && <Text style={styles.entryText}>裏あり</Text>}
-                  <Text style={styles.entryText}>投資額: {entry.investment.toLocaleString()}円</Text>
+                <View
+                  key={index}
+                  style={[styles.entryContainer, { backgroundColor: colors.innerCardBg }]}
+                >
+                  <Text style={[styles.entryTitle, { color: colors.text }]}>口{index + 1}</Text>
+                  <Text style={[styles.entryText, { color: colors.subText }]}>
+                    式別: {entry.bet_type}
+                  </Text>
+                  {entry.first_place && (
+                    <Text style={[styles.entryText, { color: colors.subText }]}>
+                      1着: {entry.first_place}番
+                    </Text>
+                  )}
+                  {entry.second_place && (
+                    <Text style={[styles.entryText, { color: colors.subText }]}>
+                      2着: {entry.second_place}番
+                    </Text>
+                  )}
+                  {entry.third_place && (
+                    <Text style={[styles.entryText, { color: colors.subText }]}>
+                      3着: {entry.third_place}番
+                    </Text>
+                  )}
+                  {entry.bet_type === '馬単' && entry.ura && (
+                    <Text style={[styles.entryText, { color: colors.subText }]}>裏あり</Text>
+                  )}
+                  <Text style={[styles.entryText, { color: colors.subText }]}>
+                    投資額: {entry.investment.toLocaleString()}円
+                  </Text>
                 </View>
               ))}
             </View>
@@ -194,77 +273,144 @@ export default function RecordEditScreen({ qrData = null }: Props) {
 
           {/* ボックスの場合 */}
           {qrData?.box_selection && (
-            <View style={styles.entriesContainer}>
-              <Text style={styles.label}>ボックス選択</Text>
-              <Text style={styles.entryText}>式別: {qrData.box_selection.bet_type}</Text>
-              <Text style={styles.entryText}>選択馬番: {qrData.box_selection.selections.join(', ')}</Text>
-              <Text style={styles.entryText}>投資額: {qrData.box_selection.investment.toLocaleString()}円</Text>
+            <View style={[styles.entriesContainer, { backgroundColor: colors.cardBg }]}>
+              <Text style={[styles.label, { color: colors.subText, marginTop: 0 }]}>
+                ボックス選択
+              </Text>
+              <Text style={[styles.entryText, { color: colors.subText }]}>
+                式別: {qrData.box_selection.bet_type}
+              </Text>
+              <Text style={[styles.entryText, { color: colors.subText }]}>
+                選択馬番: {qrData.box_selection.selections.join(', ')}
+              </Text>
+              <Text style={[styles.entryText, { color: colors.subText }]}>
+                投資額: {qrData.box_selection.investment.toLocaleString()}円
+              </Text>
             </View>
           )}
 
           {/* ながしの場合 */}
           {qrData?.nagashi_selection && (
-            <View style={styles.entriesContainer}>
-              <Text style={styles.label}>ながし選択</Text>
-              <Text style={styles.entryText}>式別: {qrData.nagashi_selection.bet_type}</Text>
+            <View style={[styles.entriesContainer, { backgroundColor: colors.cardBg }]}>
+              <Text style={[styles.label, { color: colors.subText, marginTop: 0 }]}>
+                ながし選択
+              </Text>
+              <Text style={[styles.entryText, { color: colors.subText }]}>
+                式別: {qrData.nagashi_selection.bet_type}
+              </Text>
               {qrData.nagashi_selection.axis1_selections.length > 0 && (
-                <Text style={styles.entryText}>軸1: {qrData.nagashi_selection.axis1_selections.join(', ')}</Text>
+                <Text style={[styles.entryText, { color: colors.subText }]}>
+                  軸1: {qrData.nagashi_selection.axis1_selections.join(', ')}
+                </Text>
               )}
               {qrData.nagashi_selection.axis2_selections.length > 0 && (
-                <Text style={styles.entryText}>軸2: {qrData.nagashi_selection.axis2_selections.join(', ')}</Text>
+                <Text style={[styles.entryText, { color: colors.subText }]}>
+                  軸2: {qrData.nagashi_selection.axis2_selections.join(', ')}
+                </Text>
               )}
-              <Text style={styles.entryText}>相手: {qrData.nagashi_selection.opponent_selections.join(', ')}</Text>
-              {qrData.nagashi_selection.is_multi && <Text style={styles.entryText}>マルチあり</Text>}
-              <Text style={styles.entryText}>投資額: {qrData.nagashi_selection.investment.toLocaleString()}円</Text>
+              <Text style={[styles.entryText, { color: colors.subText }]}>
+                相手: {qrData.nagashi_selection.opponent_selections.join(', ')}
+              </Text>
+              {qrData.nagashi_selection.is_multi && (
+                <Text style={[styles.entryText, { color: colors.subText }]}>マルチあり</Text>
+              )}
+              <Text style={[styles.entryText, { color: colors.subText }]}>
+                投資額: {qrData.nagashi_selection.investment.toLocaleString()}円
+              </Text>
             </View>
           )}
 
           {/* フォーメーションの場合 */}
           {qrData?.formation_selection && (
-            <View style={styles.entriesContainer}>
-              <Text style={styles.label}>フォーメーション選択</Text>
-              <Text style={styles.entryText}>1着: {qrData.formation_selection.first_place_selections.join(', ')}</Text>
-              <Text style={styles.entryText}>2着: {qrData.formation_selection.second_place_selections.join(', ')}</Text>
-              <Text style={styles.entryText}>3着: {qrData.formation_selection.third_place_selections.join(', ')}</Text>
-              <Text style={styles.entryText}>投資額: {qrData.formation_selection.investment.toLocaleString()}円</Text>
+            <View style={[styles.entriesContainer, { backgroundColor: colors.cardBg }]}>
+              <Text style={[styles.label, { color: colors.subText, marginTop: 0 }]}>
+                フォーメーション選択
+              </Text>
+              <Text style={[styles.entryText, { color: colors.subText }]}>
+                1着: {qrData.formation_selection.first_place_selections.join(', ')}
+              </Text>
+              <Text style={[styles.entryText, { color: colors.subText }]}>
+                2着: {qrData.formation_selection.second_place_selections.join(', ')}
+              </Text>
+              <Text style={[styles.entryText, { color: colors.subText }]}>
+                3着: {qrData.formation_selection.third_place_selections.join(', ')}
+              </Text>
+              <Text style={[styles.entryText, { color: colors.subText }]}>
+                投資額: {qrData.formation_selection.investment.toLocaleString()}円
+              </Text>
             </View>
           )}
 
-          <Text style={styles.label}>式別</Text>
+          <Text style={[styles.label, { color: colors.subText }]}>式別</Text>
           <View style={styles.betTypeContainer}>
-            {BET_TYPES.map((type) => (
-              <TouchableOpacity
-                key={type}
-                style={[
-                  styles.betTypeButton,
-                  betType === type && styles.betTypeSelected,
-                ]}
-                onPress={() => setBetType(type)}
-              >
-                <Text
+            {BET_TYPES.map((type) => {
+              const selected = betType === type;
+              return (
+                <TouchableOpacity
+                  key={type}
                   style={[
-                    styles.betTypeText,
-                    betType === type && styles.betTypeTextSelected,
+                    styles.betTypeButton,
+                    {
+                      borderColor: colors.chipBorder,
+                      backgroundColor: selected ? colors.chipBgSelected : 'transparent',
+                    },
                   ]}
+                  onPress={() => setBetType(type)}
                 >
-                  {type}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text
+                    style={[
+                      styles.betTypeText,
+                      { color: selected ? colors.chipTextSelected : colors.text },
+                    ]}
+                  >
+                    {type}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
 
-          <Text style={styles.label}>回収額（円）</Text>
+          <Text style={[styles.label, { color: colors.subText }]}>回収額（円）</Text>
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input,
+              { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text },
+            ]}
             value={returnAmount}
             onChangeText={setReturnAmount}
             keyboardType="number-pad"
+            placeholder="例：0"
+            placeholderTextColor={colors.subText}
           />
         </ScrollView>
 
-        <View style={styles.footer}>
-          <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-            <Text style={styles.saveButtonText}>
+        <View
+          style={[
+            styles.footer,
+            { backgroundColor: colors.footerBg, borderColor: colors.footerBorder },
+          ]}
+        >
+          <TouchableOpacity
+            style={[
+              styles.saveButton,
+              {
+                backgroundColor: colors.primary,
+                borderWidth: 1,
+                borderColor: colors.primaryBorder,
+
+                // iOS: ふわっと浮かせる
+                shadowColor: '#000',
+                shadowOpacity: isDark ? 0.35 : 0.2,
+                shadowRadius: 10,
+                shadowOffset: { width: 0, height: 6 },
+
+                // Android
+                elevation: isDark ? 6 : 2,
+              },
+            ]}
+            onPress={handleSave}
+          >
+            <Text style={[styles.saveButtonText, { color: colors.primaryText }]}>
               {isEdit ? '更新する' : '登録する'}
             </Text>
           </TouchableOpacity>
@@ -272,23 +418,23 @@ export default function RecordEditScreen({ qrData = null }: Props) {
       </KeyboardAvoidingView>
 
       <Modal transparent visible={showDatePicker} animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+        <View style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.modalBg }]}>
             <DateTimePicker
               value={date}
               mode="date"
               display="spinner"
               locale="ja-JP"
-              themeVariant="light"
+              themeVariant={isDark ? 'dark' : 'light'}
               onChange={(_, selectedDate) => {
                 if (selectedDate) setDate(selectedDate);
               }}
             />
             <TouchableOpacity
-              style={styles.doneButton}
+              style={[styles.doneButton, { borderColor: colors.footerBorder }]}
               onPress={() => setShowDatePicker(false)}
             >
-              <Text style={styles.doneText}>決定</Text>
+              <Text style={[styles.doneText, { color: colors.text }]}>決定</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -298,14 +444,17 @@ export default function RecordEditScreen({ qrData = null }: Props) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#fff' },
+  safeArea: { flex: 1 },
+
   scrollContent: { padding: 16, paddingBottom: 140 },
+
   title: { fontSize: 20, fontWeight: 'bold', marginBottom: 16 },
+
   label: { marginTop: 12, marginBottom: 4 },
+
   input: {
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 6,
+    borderRadius: 8,
     padding: 12,
   },
 
@@ -316,16 +465,13 @@ const styles = StyleSheet.create({
   },
   betTypeButton: {
     borderWidth: 1,
-    borderColor: '#aaa',
     borderRadius: 16,
     paddingVertical: 6,
     paddingHorizontal: 12,
     marginRight: 8,
     marginBottom: 8,
   },
-  betTypeSelected: { backgroundColor: '#000' },
   betTypeText: { fontSize: 12 },
-  betTypeTextSelected: { color: '#fff' },
 
   footer: {
     position: 'absolute',
@@ -334,48 +480,42 @@ const styles = StyleSheet.create({
     right: 0,
     padding: 16,
     borderTopWidth: 1,
-    borderColor: '#eee',
-    backgroundColor: '#fff',
   },
   saveButton: {
-    backgroundColor: '#000',
     paddingVertical: 14,
-    borderRadius: 8,
+    borderRadius: 12,
     alignItems: 'center',
+    overflow: 'hidden',
   },
-  saveButtonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  saveButtonText: { fontSize: 16, fontWeight: 'bold' },
 
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.3)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#fff',
     paddingTop: 16,
   },
   doneButton: {
     padding: 16,
     alignItems: 'center',
     borderTopWidth: 1,
-    borderColor: '#eee',
   },
   doneText: {
     fontSize: 16,
     fontWeight: 'bold',
   },
+
   entriesContainer: {
     marginTop: 16,
     marginBottom: 16,
     padding: 12,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 8,
+    borderRadius: 10,
   },
   entryContainer: {
     marginTop: 8,
-    padding: 8,
-    backgroundColor: '#fff',
-    borderRadius: 4,
+    padding: 10,
+    borderRadius: 8,
   },
   entryTitle: {
     fontSize: 14,

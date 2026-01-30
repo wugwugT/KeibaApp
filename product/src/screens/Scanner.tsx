@@ -62,13 +62,16 @@ export default function ScannerScreen() {
       )}
 
       {/* OCR未実装時の背景 */}
+      {/* TODO: OCR機能実装時にコメントアウト解除
       {scanMode === 'OCR' && (
         <View style={styles.ocrPlaceholder}>
           <Text style={{ color: '#fff' }}>OCRは未実装</Text>
         </View>
       )}
+      */}
 
       {/* モード切替（カメラの上に重ねる） */}
+      {/* TODO: OCR機能実装時にコメントアウト解除
       <View style={styles.segment}>
         {(['OCR', 'QR'] as ScanMode[]).map((mode) => (
           <TouchableOpacity
@@ -93,6 +96,7 @@ export default function ScannerScreen() {
           </TouchableOpacity>
         ))}
       </View>
+      */}
     </View>
   );
 }

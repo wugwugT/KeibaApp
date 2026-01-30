@@ -1,5 +1,14 @@
-import { useMemo, useState } from 'react';
-import { FlatList, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  FlatList,
+  LayoutAnimation,
+  Platform,
+  StyleSheet,
+  TouchableOpacity,
+  UIManager,
+  View,
+} from 'react-native';
+import { useRouter } from 'expo-router';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 
@@ -12,6 +21,17 @@ import { useBestWorst } from '@/src/hooks/useBestWorst';
 
 import { PlaceBarChart } from '@/src/components/analysis/PlaceBarChart';
 import { CumulativeLineChart } from '@/src/components/analysis/CumulativeLineChart';
+import { BetRecordCard } from '@/src/components/common/BetRecordCard';
+import { getAllBetRecords } from '@/src/services/db/crud';
+import type { BetRecord } from '@/src/types/betRecord';
+
+// Android用にLayoutAnimationを有効化
+if (
+  Platform.OS === 'android' &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 type Mode = 'place' | 'betType' | 'raceNo' | 'trend' | 'cumulative';
 
@@ -39,6 +59,10 @@ type CumulativeRow = {
 
 export const Analysis = () => {
   const [mode, setMode] = useState<Mode>('place');
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const [allRecords, setAllRecords] = useState<BetRecord[]>([]);
+
+  const router = useRouter();
 
   const placeStats = usePlaceStats();
   const betTypeStats = useBetTypeStats();
@@ -48,6 +72,50 @@ export const Analysis = () => {
 
   // ✅ ANA-006
   const { best, worst } = useBestWorst();
+
+  // 全レコードを取得
+  useEffect(() => {
+    const load = async () => {
+      const records = await getAllBetRecords();
+      setAllRecords(records);
+    };
+    load();
+  }, []);
+
+  // カードタップ時の展開/折りたたみ
+  const toggleExpand = (key: string) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpandedKey((prev) => (prev === key ? null : key));
+  };
+
+  // 展開時に表示するレコードをフィルタリング
+  const getFilteredRecords = (key: string): BetRecord[] => {
+    if (mode === 'place') {
+      return allRecords.filter((r) => r.place === key);
+    }
+    if (mode === 'betType') {
+      return allRecords.filter((r) => r.bet_type === key);
+    }
+    if (mode === 'raceNo') {
+      const raceNo = parseInt(key.replace('R', ''), 10);
+      return allRecords.filter((r) => r.race_no === raceNo);
+    }
+    if (mode === 'trend') {
+      // key は "YYYY-MM-DD" 形式
+      return allRecords.filter((r) => {
+        const dateStr = r.date.toISOString().split('T')[0];
+        return dateStr === key;
+      });
+    }
+    if (mode === 'cumulative') {
+      // 累積モードでも日付でフィルター
+      return allRecords.filter((r) => {
+        const dateStr = r.date.toISOString().split('T')[0];
+        return dateStr === key;
+      });
+    }
+    return [];
+  };
 
   const data: Row[] = useMemo(() => {
     if (mode === 'trend' || mode === 'cumulative') return [];
@@ -224,27 +292,60 @@ export const Analysis = () => {
             100,
             (Math.abs(item.profit) / trendMaxAbsProfit) * 100
           );
+          const isExpanded = expandedKey === item.date;
+          const filteredRecords = isExpanded
+            ? getFilteredRecords(item.date)
+            : [];
 
           return (
-            <ThemedView style={styles.card}>
-              <ThemedText type="subtitle">{item.date}</ThemedText>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => toggleExpand(item.date)}>
+              <ThemedView style={styles.card}>
+                <View style={styles.cardHeader}>
+                  <ThemedText type="subtitle">{item.date}</ThemedText>
+                  <ThemedText style={styles.expandIcon}>
+                    {isExpanded ? '▲' : '▼'}
+                  </ThemedText>
+                </View>
 
-              <View style={styles.trendBarBg}>
-                <View
-                  style={[
-                    styles.trendBar,
-                    { width: `${widthPct}%`, backgroundColor: profitColor },
-                  ]}
-                />
-              </View>
+                <View style={styles.trendBarBg}>
+                  <View
+                    style={[
+                      styles.trendBar,
+                      { width: `${widthPct}%`, backgroundColor: profitColor },
+                    ]}
+                  />
+                </View>
 
-              <ThemedText>投資: {item.investment}円</ThemedText>
-              <ThemedText>回収: {item.return}円</ThemedText>
-              <ThemedText style={{ color: profitColor }}>
-                収支: {item.profit}円
-              </ThemedText>
-              <ThemedText>回収率: {item.recoveryRate}%</ThemedText>
-            </ThemedView>
+                <ThemedText>投資: {item.investment}円</ThemedText>
+                <ThemedText>回収: {item.return}円</ThemedText>
+                <ThemedText style={{ color: profitColor }}>
+                  収支: {item.profit}円
+                </ThemedText>
+                <ThemedText>回収率: {item.recoveryRate}%</ThemedText>
+
+                {isExpanded && (
+                  <View style={styles.expandedContent}>
+                    <ThemedText style={styles.recordsHeader}>
+                      該当レコード ({filteredRecords.length}件)
+                    </ThemedText>
+                    {filteredRecords.map((record) => (
+                      <BetRecordCard
+                        key={record.id}
+                        record={record}
+                        onPress={() =>
+                          router.push({
+                            pathname: '/recordEdit',
+                            params: { id: record.id },
+                          })
+                        }
+                      />
+                    ))}
+                  </View>
+                )}
+              </ThemedView>
+            </TouchableOpacity>
           );
         }}
       />
@@ -280,17 +381,50 @@ export const Analysis = () => {
         renderItem={({ item }) => {
           const dailyColor = item.dailyProfit >= 0 ? '#4CAF50' : '#F44336';
           const cumColor = item.cumulativeProfit >= 0 ? '#4CAF50' : '#F44336';
+          const isExpanded = expandedKey === item.date;
+          const filteredRecords = isExpanded
+            ? getFilteredRecords(item.date)
+            : [];
 
           return (
-            <ThemedView style={styles.card}>
-              <ThemedText type="subtitle">{item.date}</ThemedText>
-              <ThemedText style={{ color: dailyColor }}>
-                日次収支: {item.dailyProfit}円
-              </ThemedText>
-              <ThemedText style={{ color: cumColor }}>
-                累積収支: {item.cumulativeProfit}円
-              </ThemedText>
-            </ThemedView>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => toggleExpand(item.date)}>
+              <ThemedView style={styles.card}>
+                <View style={styles.cardHeader}>
+                  <ThemedText type="subtitle">{item.date}</ThemedText>
+                  <ThemedText style={styles.expandIcon}>
+                    {isExpanded ? '▲' : '▼'}
+                  </ThemedText>
+                </View>
+                <ThemedText style={{ color: dailyColor }}>
+                  日次収支: {item.dailyProfit}円
+                </ThemedText>
+                <ThemedText style={{ color: cumColor }}>
+                  累積収支: {item.cumulativeProfit}円
+                </ThemedText>
+
+                {isExpanded && (
+                  <View style={styles.expandedContent}>
+                    <ThemedText style={styles.recordsHeader}>
+                      該当レコード ({filteredRecords.length}件)
+                    </ThemedText>
+                    {filteredRecords.map((record) => (
+                      <BetRecordCard
+                        key={record.id}
+                        record={record}
+                        onPress={() =>
+                          router.push({
+                            pathname: '/recordEdit',
+                            params: { id: record.id },
+                          })
+                        }
+                      />
+                    ))}
+                  </View>
+                )}
+              </ThemedView>
+            </TouchableOpacity>
           );
         }}
       />
@@ -328,14 +462,48 @@ export const Analysis = () => {
       }
       renderItem={({ item }) => {
         const profitColor = item.profit >= 0 ? '#4CAF50' : '#F44336';
+        const isExpanded = expandedKey === item.key;
+        const filteredRecords = isExpanded ? getFilteredRecords(item.key) : [];
+
         return (
-          <ThemedView style={styles.card}>
-            <ThemedText type="subtitle">{item.key}</ThemedText>
-            <ThemedText>投資: {item.investment}円</ThemedText>
-            <ThemedText>回収: {item.return}円</ThemedText>
-            <ThemedText style={{ color: profitColor }}>収支: {item.profit}円</ThemedText>
-            <ThemedText>回収率: {item.recoveryRate}%</ThemedText>
-          </ThemedView>
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={() => toggleExpand(item.key)}>
+            <ThemedView style={styles.card}>
+              <View style={styles.cardHeader}>
+                <ThemedText type="subtitle">{item.key}</ThemedText>
+                <ThemedText style={styles.expandIcon}>
+                  {isExpanded ? '▲' : '▼'}
+                </ThemedText>
+              </View>
+              <ThemedText>投資: {item.investment}円</ThemedText>
+              <ThemedText>回収: {item.return}円</ThemedText>
+              <ThemedText style={{ color: profitColor }}>
+                収支: {item.profit}円
+              </ThemedText>
+              <ThemedText>回収率: {item.recoveryRate}%</ThemedText>
+
+              {isExpanded && (
+                <View style={styles.expandedContent}>
+                  <ThemedText style={styles.recordsHeader}>
+                    該当レコード ({filteredRecords.length}件)
+                  </ThemedText>
+                  {filteredRecords.map((record) => (
+                    <BetRecordCard
+                      key={record.id}
+                      record={record}
+                      onPress={() =>
+                        router.push({
+                          pathname: '/recordEdit',
+                          params: { id: record.id },
+                        })
+                      }
+                    />
+                  ))}
+                </View>
+              )}
+            </ThemedView>
+          </TouchableOpacity>
         );
       }}
     />
@@ -359,6 +527,35 @@ const styles = StyleSheet.create({
 
   // リストの各行カード
   card: { padding: 12, borderRadius: 12 },
+
+  // カードヘッダー（タイトル + 展開アイコン）
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+
+  // 展開/折りたたみアイコン
+  expandIcon: {
+    fontSize: 12,
+    opacity: 0.6,
+  },
+
+  // 展開時のコンテンツ領域
+  expandedContent: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.1)',
+  },
+
+  // 該当レコードのヘッダー
+  recordsHeader: {
+    fontSize: 14,
+    opacity: 0.7,
+    marginBottom: 8,
+  },
 
   // 上部のチャート用カード
   chartCard: { padding: 12, borderRadius: 12 },

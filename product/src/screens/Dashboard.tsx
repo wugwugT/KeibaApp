@@ -5,6 +5,7 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useTheme } from '@react-navigation/native';
@@ -225,7 +226,13 @@ export const Dashboard = () => {
           styles.fab,
           { backgroundColor: dark ? 'rgba(255,255,255,0.12)' : '#000' },
         ]}
-        onPress={() => router.push('/scanner')}
+        onPress={() => {
+          Alert.alert('馬券を追加', '追加方法を選択してください', [
+            { text: 'QRスキャン', onPress: () => router.push('/scanner') },
+            { text: '手動入力', onPress: () => router.push('/recordEdit') },
+            { text: 'キャンセル', style: 'cancel' },
+          ]);
+        }}
       >
         <Text style={[styles.fabText, { color: '#fff' }]}>＋</Text>
       </TouchableOpacity>

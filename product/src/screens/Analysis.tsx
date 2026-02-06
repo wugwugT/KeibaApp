@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   FlatList,
   LayoutAnimation,
@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 
@@ -74,13 +75,13 @@ export const Analysis = () => {
   const { best, worst } = useBestWorst();
 
   // 全レコードを取得
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     const load = async () => {
       const records = await getAllBetRecords();
       setAllRecords(records);
     };
     load();
-  }, []);
+  }, []));
 
   // カードタップ時の展開/折りたたみ
   const toggleExpand = (key: string) => {

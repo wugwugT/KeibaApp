@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { getAllBetRecords } from '@/src/services/db/crud';
 import { calcStatsByPlace } from '@/src/utils/stats';
 
@@ -13,9 +14,9 @@ type PlaceStats = {
 export const usePlaceStats = () => {
   const [stats, setStats] = useState<PlaceStats[]>([]);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     load();
-  }, []);
+  }, []));
 
   const load = async () => {
     const records = await getAllBetRecords();

@@ -10,10 +10,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useTheme } from '@react-navigation/native';
 import { router } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
+import { Camera } from 'expo-camera';
 
 import { BetRecord } from '../types/betRecord';
 import { getAllBetRecords } from '../services/db/crud';
 import { BetRecordCard } from '../components/common/BetRecordCard';
+import { extractJRAItemsFromQR, isValidQRData } from '../services/qr';
 
 type FilterType = 'all' | 'today' | 'month';
 
@@ -39,6 +42,33 @@ export const Dashboard = () => {
   const loadRecords = async () => {
     const data = await getAllBetRecords();
     setRecords(data);
+  };
+
+  const handlePhotoQR = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 1,
+    });
+    if (result.canceled) return;
+
+    const uri = result.assets[0].uri;
+    const barcodes = await Camera.scanFromURLAsync(uri, ['qr']);
+
+    if (barcodes.length === 0) {
+      Alert.alert('読み取り失敗', 'QRコードが見つかりませんでした');
+      return;
+    }
+
+    const parsed = extractJRAItemsFromQR(barcodes[0].data);
+    if (!isValidQRData(parsed)) {
+      Alert.alert('読み取り失敗', 'JRAの馬券QRコードとして認識できませんでした');
+      return;
+    }
+
+    router.push({
+      pathname: '/recordEdit',
+      params: { qr: JSON.stringify(parsed) },
+    });
   };
 
   const filteredRecords = useMemo(() => {
@@ -229,6 +259,7 @@ export const Dashboard = () => {
         onPress={() => {
           Alert.alert('馬券を追加', '追加方法を選択してください', [
             { text: 'QRスキャン', onPress: () => router.push('/scanner') },
+            { text: '写真から読み取り', onPress: handlePhotoQR },
             { text: '手動入力', onPress: () => router.push('/recordEdit') },
             { text: 'キャンセル', style: 'cancel' },
           ]);

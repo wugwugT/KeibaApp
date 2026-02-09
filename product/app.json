@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "product",
+    "name": "MAKEN",
     "slug": "product",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "product",
@@ -11,8 +11,11 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSCameraUsageDescription": "このアプリはJRA馬券のQRコードを読み取るためにカメラを使用します。"
-      }
+        "NSCameraUsageDescription": "このアプリはJRA馬券のQRコードを読み取るためにカメラを使用します。",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "bundleIdentifier": "com.yuyaosanai.product",
+       "buildNumber": "2"
     },
     "android": {
       "adaptiveIcon": {
@@ -46,6 +49,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d3f24852-6e2c-4b31-a038-f1df2f6428ef"
+      }
     }
   }
 }

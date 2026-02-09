@@ -17,7 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useLocalSearchParams } from 'expo-router';
 
-import { saveBetRecord, getBetRecordById, updateBetRecord } from '../services/db/crud';
+import { saveBetRecord, getBetRecordById, updateBetRecord, deleteBetRecord } from '../services/db/crud';
 import { BET_TYPES } from '../constants/betTypes';
 import type { BetRecordInput, Place, BetType, BetRecord } from '../types/betRecord';
 import type { JRAQRData } from '../services/qr';
@@ -113,6 +113,27 @@ export default function RecordEditScreen({ qrData = null }: Props) {
       setBetType(qrData.bet_type as BetType);
     }
   }, [qrData, isEdit]);
+
+  const handleDelete = () => {
+    if (!isEdit || idNum === null) return;
+
+    Alert.alert('削除確認', 'このレコードを削除しますか？', [
+      { text: 'キャンセル', style: 'cancel' },
+      {
+        text: '削除する',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteBetRecord(idNum);
+            Alert.alert('削除完了', 'レコードを削除しました');
+            navigation.goBack();
+          } catch {
+            Alert.alert('エラー', '削除に失敗しました');
+          }
+        },
+      },
+    ]);
+  };
 
   const handleSave = async () => {
     if (!place || !raceNo || !investment || !betType) {
@@ -390,6 +411,14 @@ export default function RecordEditScreen({ qrData = null }: Props) {
             { backgroundColor: colors.footerBg, borderColor: colors.footerBorder },
           ]}
         >
+          {isEdit && (
+            <TouchableOpacity
+              style={styles.deleteButton}
+              onPress={handleDelete}
+            >
+              <Text style={styles.saveButtonText}>削除する</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
             style={[
               styles.saveButton,
@@ -480,6 +509,13 @@ const styles = StyleSheet.create({
     right: 0,
     padding: 16,
     borderTopWidth: 1,
+  },
+  deleteButton: {
+    backgroundColor: '#e74c3c',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 10,
   },
   saveButton: {
     paddingVertical: 14,

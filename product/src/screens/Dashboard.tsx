@@ -6,19 +6,24 @@ import {
   FlatList,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useTheme } from '@react-navigation/native';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Camera } from 'expo-camera';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 import { BetRecord } from '../types/betRecord';
-import { getAllBetRecords } from '../services/db/crud';
+import { getAllBetRecords, saveBetRecords } from '../services/db/crud';
 import { BetRecordCard } from '../components/common/BetRecordCard';
 import { extractJRAItemsFromQR, isValidQRData } from '../services/qr';
+import { exportAsCSV } from '../services/export';
+import { importFromCSV } from '../services/import';
 
-type FilterType = 'all' | 'today' | 'month';
+type FilterType = 'all' | 'today' | 'month' | 'lastMonth' | 'custom';
 
 const toYMD = (d: Date) => {
   const y = d.getFullYear();
@@ -32,9 +37,14 @@ export const Dashboard = () => {
 
   const [records, setRecords] = useState<BetRecord[]>([]);
   const [filter, setFilter] = useState<FilterType>('all');
+  const [isLoading, setIsLoading] = useState(true);
+  const [customStart, setCustomStart] = useState<Date | null>(null);
+  const [customEnd, setCustomEnd] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState<'start' | 'end' | null>(null);
 
   useFocusEffect(
     useCallback(() => {
+      setIsLoading(true);
       loadRecords();
     }, [])
   );
@@ -42,6 +52,7 @@ export const Dashboard = () => {
   const loadRecords = async () => {
     const data = await getAllBetRecords();
     setRecords(data);
+    setIsLoading(false);
   };
 
   const handlePhotoQR = async () => {
@@ -71,6 +82,18 @@ export const Dashboard = () => {
     });
   };
 
+  const handleImport = async () => {
+    try {
+      const inputs = await importFromCSV();
+      if (inputs.length === 0) return;
+      await saveBetRecords(inputs);
+      Alert.alert('インポート完了', `${inputs.length}件のレコードをインポートしました`);
+      loadRecords();
+    } catch (e) {
+      Alert.alert('エラー', 'インポートに失敗しました');
+    }
+  };
+
   const filteredRecords = useMemo(() => {
     return records.filter((record) => {
       if (filter === 'all') return true;
@@ -93,9 +116,30 @@ export const Dashboard = () => {
         );
       }
 
+      if (filter === 'lastMonth') {
+        const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        return (
+          recordDate.getFullYear() === lastMonth.getFullYear() &&
+          recordDate.getMonth() === lastMonth.getMonth()
+        );
+      }
+
+      if (filter === 'custom') {
+        if (!customStart && !customEnd) return true;
+        if (customStart) {
+          const start = new Date(customStart.getFullYear(), customStart.getMonth(), customStart.getDate());
+          if (recordDate < start) return false;
+        }
+        if (customEnd) {
+          const end = new Date(customEnd.getFullYear(), customEnd.getMonth(), customEnd.getDate(), 23, 59, 59);
+          if (recordDate > end) return false;
+        }
+        return true;
+      }
+
       return true;
     });
-  }, [records, filter]);
+  }, [records, filter, customStart, customEnd]);
 
   // ===== ANA-007: 統計サマリー =====
   const summary = useMemo(() => {
@@ -174,7 +218,10 @@ export const Dashboard = () => {
                 収支サマリー
               </Text>
 
-              <Text style={[styles.summaryProfit, { color: profitColor }]}>
+              <Text
+                style={[styles.summaryProfit, { color: profitColor }]}
+                accessibilityLabel={`収支 ${summary.totalProfit >= 0 ? 'プラス' : 'マイナス'} ${Math.abs(summary.totalProfit)}円`}
+              >
                 {summary.totalProfit >= 0 ? '+' : ''}
                 {summary.totalProfit.toLocaleString()}円
               </Text>
@@ -222,8 +269,14 @@ export const Dashboard = () => {
 
             {/* ===== フィルタ ===== */}
             <View style={styles.filterRow}>
-              {(['all', 'today', 'month'] as FilterType[]).map((key) => {
+              {(['all', 'today', 'month', 'lastMonth', 'custom'] as FilterType[]).map((key) => {
                 const active = filter === key;
+                const label =
+                  key === 'all' ? '全期間' :
+                  key === 'today' ? '今日' :
+                  key === 'month' ? '今月' :
+                  key === 'lastMonth' ? '先月' :
+                  '期間指定';
                 return (
                   <TouchableOpacity
                     key={key}
@@ -231,7 +284,15 @@ export const Dashboard = () => {
                       styles.filterButton,
                       { backgroundColor: active ? chipActiveBg : chipBg },
                     ]}
-                    onPress={() => setFilter(key)}
+                    accessibilityLabel={`${label}フィルタ`}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                    onPress={() => {
+                      setFilter(key);
+                      if (key === 'custom') {
+                        setShowDatePicker('start');
+                      }
+                    }}
                   >
                     <Text
                       style={[
@@ -239,16 +300,73 @@ export const Dashboard = () => {
                         { color: active ? '#fff' : colors.text },
                       ]}
                     >
-                      {key === 'all' ? '全期間' : key === 'today' ? '今日' : '今月'}
+                      {label}
                     </Text>
                   </TouchableOpacity>
                 );
               })}
             </View>
+            {filter === 'custom' && (customStart || customEnd) && (
+              <TouchableOpacity
+                style={styles.customRangeRow}
+                onPress={() => setShowDatePicker('start')}
+              >
+                <Text style={[styles.customRangeText, { color: colors.text }]}>
+                  {customStart
+                    ? `${customStart.getFullYear()}/${String(customStart.getMonth() + 1).padStart(2, '0')}/${String(customStart.getDate()).padStart(2, '0')}`
+                    : '---'}
+                  {' 〜 '}
+                  {customEnd
+                    ? `${customEnd.getFullYear()}/${String(customEnd.getMonth() + 1).padStart(2, '0')}/${String(customEnd.getDate()).padStart(2, '0')}`
+                    : '---'}
+                </Text>
+              </TouchableOpacity>
+            )}
           </>
+        }
+        ListEmptyComponent={
+          isLoading ? (
+            <ActivityIndicator style={{ marginTop: 40 }} />
+          ) : (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyIcon}>📋</Text>
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                まだ記録がありません
+              </Text>
+              <Text style={[styles.emptyDesc, { color: colors.text }]}>
+                右下の＋ボタンから馬券を追加してください
+              </Text>
+            </View>
+          )
         }
         contentContainerStyle={{ paddingBottom: 120 }}
       />
+
+      {/* ===== DateTimePicker ===== */}
+      {showDatePicker && (
+        <DateTimePicker
+          value={
+            showDatePicker === 'start'
+              ? customStart ?? new Date()
+              : customEnd ?? new Date()
+          }
+          mode="date"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={(_, selectedDate) => {
+            if (Platform.OS === 'android') {
+              setShowDatePicker(null);
+            }
+            if (!selectedDate) return;
+            if (showDatePicker === 'start') {
+              setCustomStart(selectedDate);
+              setShowDatePicker('end');
+            } else {
+              setCustomEnd(selectedDate);
+              setShowDatePicker(null);
+            }
+          }}
+        />
+      )}
 
       {/* ===== ＋ボタン（Scanner起動） ===== */}
       <TouchableOpacity
@@ -256,11 +374,15 @@ export const Dashboard = () => {
           styles.fab,
           { backgroundColor: dark ? 'rgba(255,255,255,0.12)' : '#000' },
         ]}
+        accessibilityLabel="メニューを開く"
+        accessibilityRole="button"
         onPress={() => {
-          Alert.alert('馬券を追加', '追加方法を選択してください', [
+          Alert.alert('メニュー', '操作を選択してください', [
             { text: 'QRスキャン', onPress: () => router.push('/scanner') },
             { text: '写真から読み取り', onPress: handlePhotoQR },
             { text: '手動入力', onPress: () => router.push('/recordEdit') },
+            { text: 'CSVエクスポート', onPress: () => exportAsCSV(filteredRecords) },
+            { text: 'CSVインポート', onPress: handleImport },
             { text: 'キャンセル', style: 'cancel' },
           ]);
         }}
@@ -329,8 +451,11 @@ const styles = StyleSheet.create({
   // ===== フィルタ =====
   filterRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
     marginBottom: 8,
+    paddingHorizontal: 16,
   },
   filterButton: {
     paddingVertical: 6,
@@ -339,6 +464,35 @@ const styles = StyleSheet.create({
   },
   filterText: {
     fontSize: 14,
+  },
+  customRangeRow: {
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  customRangeText: {
+    fontSize: 13,
+    opacity: 0.7,
+  },
+
+  // ===== 空状態 =====
+  emptyState: {
+    alignItems: 'center',
+    paddingTop: 40,
+    paddingHorizontal: 32,
+  },
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: 12,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  emptyDesc: {
+    fontSize: 14,
+    opacity: 0.6,
+    textAlign: 'center',
   },
 
   /** ＋ボタン */

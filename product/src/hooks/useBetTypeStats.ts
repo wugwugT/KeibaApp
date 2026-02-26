@@ -1,19 +1,7 @@
-import { useCallback, useState } from 'react';
-import { useFocusEffect } from '@react-navigation/native';
-import { getAllBetRecords } from '@/src/services/db/crud';
+import { useMemo } from 'react';
+import type { BetRecord } from '@/src/types/betRecord';
 import { calcStatsByBetType, type GroupStats } from '@/src/utils/stats';
 
-export const useBetTypeStats = () => {
-  const [stats, setStats] = useState<GroupStats[]>([]);
-
-  useFocusEffect(useCallback(() => {
-    load();
-  }, []));
-
-  const load = async () => {
-    const records = await getAllBetRecords();
-    setStats(calcStatsByBetType(records));
-  };
-
-  return stats;
+export const useBetTypeStats = (records: BetRecord[]): GroupStats[] => {
+  return useMemo(() => calcStatsByBetType(records), [records]);
 };

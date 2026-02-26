@@ -106,6 +106,9 @@ export interface JRAQRData {
   /** 互換性のため: 一口目の投資額（後方互換性） */
   investment: number | null;
   
+  /** QR年情報から推定した日付（ISO文字列） */
+  estimatedDate?: string;
+
   /** その他の生データ */
   rawData: string;
 }

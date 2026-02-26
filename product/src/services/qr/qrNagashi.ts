@@ -37,7 +37,7 @@ import type { NagashiSelection } from './qrTypes';
  * @returns ながしの選択情報またはnull
  */
 export const extractNagashiSelection = (code: string): NagashiSelection | null => {
-  if (code.length < 100) return null; // 最低限の長さチェック（式別2桁+54桁ブロック+金額5桁+マルチ1桁）
+  if (code.length < 61) return null; // 最低限の長さチェック（式別2桁+54桁ブロック+金額5桁=61桁）
   
   // 式別（43-44桁、extraの先頭2桁）
   const betTypeCode = code.substring(0, 2);

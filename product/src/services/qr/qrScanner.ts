@@ -18,6 +18,8 @@ import {
   extractSalesLocationFrom95DigitCode,
   extractBetTypeFrom95DigitCode,
   separateBaseAndExtra,
+  detectPaddingStart,
+  getBaseLength,
 } from './qrExtractors';
 import { extractNormalEntries } from './qrNormalEntries';
 import { extractBoxSelection } from './qrBox';
@@ -35,6 +37,8 @@ export {
   extractRoundFrom95DigitCode,
   extractDayFrom95DigitCode,
   extractTicketNoFrom95DigitCode,
+  detectRacingType,
+  getBaseLength,
 } from './qrExtractors';
 
 /**
@@ -177,5 +181,64 @@ export const isValidQRData = (data: JRAQRData): boolean => {
   }
   
   // クイックピック（4）は考慮外
+  return false;
+};
+
+/**
+ * 右QRのチェックデジット長（末尾5桁）
+ */
+const RIGHT_QR_CHECK_DIGIT_LENGTH = 5;
+
+/**
+ * 左QRと右QRのデータを結合する
+ *
+ * 右QRからチェックデジット(末尾5桁)を除去し、パディングを除去した上で
+ * 左QRの末尾に連結する。
+ *
+ * @param leftQR - 左QRコードの数字列
+ * @param rightQR - 右QRコードの数字列
+ * @returns 結合された数字列
+ */
+export const combineQRData = (leftQR: string, rightQR: string): string => {
+  // 右QRからチェックデジット(末尾5桁)を除去
+  const rightWithoutCheck = rightQR.substring(0, rightQR.length - RIGHT_QR_CHECK_DIGIT_LENGTH);
+  // パディング除去
+  const paddingStart = detectPaddingStart(rightWithoutCheck, 0);
+  const rightExtra = paddingStart >= 0
+    ? rightWithoutCheck.substring(0, paddingStart)
+    : rightWithoutCheck;
+  return leftQR + rightExtra;
+};
+
+/**
+ * 左QRデータが不完全（右QRとの結合が必要）かどうかを判定する
+ *
+ * base情報（place, race_no）が有効だが、extra部分のデータが不完全な場合にtrueを返す。
+ * フォーメーション・ボックス・ながしで、extraが必要な長さに満たない場合を検出する。
+ *
+ * @param data - 抽出されたJRA項目
+ * @returns 不完全なデータかどうか
+ */
+export const isPartialQRData = (data: JRAQRData): boolean => {
+  // base情報が有効でなければ「不完全」ではなく「無効」
+  if (data.place === null || data.race_no === null) {
+    return false;
+  }
+
+  // 買い方が取得できていて、extra部分の解析結果が空の場合は不完全
+  const buyMethod = data.buy_method;
+  if (buyMethod === 3 && data.formation_selection === null) {
+    return true;
+  }
+  if (buyMethod === 1 && data.box_selection === null) {
+    return true;
+  }
+  if (buyMethod === 2 && data.nagashi_selection === null) {
+    return true;
+  }
+  if ((buyMethod === 0 || buyMethod === 5) && (data.normal_entries === null || data.normal_entries.length === 0)) {
+    return true;
+  }
+
   return false;
 };

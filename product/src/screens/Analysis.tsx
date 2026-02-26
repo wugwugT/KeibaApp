@@ -10,6 +10,9 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { runOnJS } from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 
@@ -64,6 +67,39 @@ export const Analysis = () => {
   const [allRecords, setAllRecords] = useState<BetRecord[]>([]);
 
   const router = useRouter();
+
+  const MODES: Mode[] = ['place', 'betType', 'raceNo', 'trend', 'cumulative'];
+
+  const goToNextTab = () => {
+    const currentIndex = MODES.indexOf(mode);
+    if (currentIndex < MODES.length - 1) {
+      setMode(MODES[currentIndex + 1]);
+      if (process.env.EXPO_OS === 'ios') {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    }
+  };
+
+  const goToPrevTab = () => {
+    const currentIndex = MODES.indexOf(mode);
+    if (currentIndex > 0) {
+      setMode(MODES[currentIndex - 1]);
+      if (process.env.EXPO_OS === 'ios') {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    }
+  };
+
+  const swipeGesture = Gesture.Pan()
+    .activeOffsetX([-20, 20])
+    .failOffsetY([-10, 10])
+    .onEnd((event) => {
+      if (event.translationX < -50) {
+        runOnJS(goToNextTab)();
+      } else if (event.translationX > 50) {
+        runOnJS(goToPrevTab)();
+      }
+    });
 
   const placeStats = usePlaceStats();
   const betTypeStats = useBetTypeStats();
@@ -266,6 +302,7 @@ export const Analysis = () => {
   // ===== 日別（ANA-004） =====
   if (mode === 'trend') {
     return (
+      <GestureDetector gesture={swipeGesture}>
       <FlatList
         data={trend}
         keyExtractor={(item) => item.date}
@@ -350,12 +387,14 @@ export const Analysis = () => {
           );
         }}
       />
+      </GestureDetector>
     );
   }
 
   // ===== 累積（ANA-005：折れ線） =====
   if (mode === 'cumulative') {
     return (
+      <GestureDetector gesture={swipeGesture}>
       <FlatList
         data={cumulativeRows}
         keyExtractor={(item) => item.date}
@@ -429,11 +468,13 @@ export const Analysis = () => {
           );
         }}
       />
+      </GestureDetector>
     );
   }
 
   // ===== place / betType / raceNo（既存） =====
   return (
+    <GestureDetector gesture={swipeGesture}>
     <FlatList
       data={data}
       keyExtractor={(item) => item.key}
@@ -508,6 +549,7 @@ export const Analysis = () => {
         );
       }}
     />
+    </GestureDetector>
   );
 };
 

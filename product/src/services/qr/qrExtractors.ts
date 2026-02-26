@@ -1,9 +1,23 @@
 /**
  * QRコードから基本情報を抽出する関数群
- * base（1-42桁）の情報を抽出
+ * base（JRA: 1-42桁、地方: 1-50桁）の情報を抽出
  */
 
 import type { BetType, Place } from '@/src/types/betRecord';
+
+/**
+ * QRコードがJRAか地方競馬かを判別する
+ * 場コード(2-3桁目)が01-10 → JRA (base=42)、11以上 → 地方 (base=50)
+ */
+export const detectRacingType = (code: string): 'jra' | 'local' => {
+  if (code.length < 3) return 'jra';
+  const placeCode = parseInt(code.substring(1, 3), 10);
+  return placeCode >= 1 && placeCode <= 10 ? 'jra' : 'local';
+};
+
+export const getBaseLength = (code: string): number => {
+  return detectRacingType(code) === 'jra' ? 42 : 50;
+};
 
 /**
  * 95桁の数字列から競馬場名を抽出する
@@ -21,6 +35,7 @@ export const extractPlaceFrom95DigitCode = (code: string): Place | null => {
   const placeCode = code.substring(1, 3);
   
   const placeCodeMap: Record<string, Place> = {
+    // JRA (01-10)
     '01': '札幌',
     '02': '函館',
     '03': '福島',
@@ -31,6 +46,23 @@ export const extractPlaceFrom95DigitCode = (code: string): Place | null => {
     '08': '京都',
     '09': '阪神',
     '10': '小倉',
+    // 地方 (実馬券で検証済みのもの)
+    '57': '船橋',
+    // 以下は未検証（実馬券検証待ち）
+    // '36': '帯広',
+    // '30': '門別',
+    // '35': '盛岡',
+    // '34': '水沢',
+    // '42': '浦和',
+    // '43': '大井',
+    // '44': '川崎',
+    // '46': '金沢',
+    // '47': '笠松',
+    // '48': '名古屋',
+    // '50': '園田',
+    // '51': '姫路',
+    // '54': '高知',
+    // '55': '佐賀',
   };
   
   return placeCodeMap[placeCode] || null;
@@ -42,19 +74,19 @@ export const extractPlaceFrom95DigitCode = (code: string): Place | null => {
  * 13-14桁：レース番号
  * 
  * @param code - 95桁の数字列
- * @returns レース番号（1〜12）またはnull
+ * @returns レース番号（1〜16）またはnull
  */
 export const extractRaceNoFrom95DigitCode = (code: string): number | null => {
   if (code.length < 14) return null;
-  
+
   // 13-14桁目を取得（0-indexedなので12-13）
   const raceNoStr = code.substring(12, 14);
   const raceNo = parseInt(raceNoStr, 10);
-  
-  if (!isNaN(raceNo) && raceNo >= 1 && raceNo <= 12) {
+
+  if (!isNaN(raceNo) && raceNo >= 1 && raceNo <= 16) {
     return raceNo;
   }
-  
+
   return null;
 };
 
@@ -371,28 +403,30 @@ export const detectPaddingStart = (data: string, startPos: number): number => {
 };
 
 /**
- * base（1-42桁）とextra（43桁以降）を分離し、パディングを除去する
- * 
+ * base（JRA: 1-42桁、地方: 1-50桁）とextra（base以降）を分離し、パディングを除去する
+ *
  * @param qrData - QRコードから読み取った文字列データ
  * @returns baseとextra（パディング除去済み）のオブジェクト
  */
 export const separateBaseAndExtra = (qrData: string): { base: string; extra: string } => {
-  if (qrData.length < 42) {
+  const baseLen = getBaseLength(qrData);
+
+  if (qrData.length < baseLen) {
     return { base: qrData, extra: '' };
   }
-  
-  const base = qrData.substring(0, 42);
-  const extraWithPadding = qrData.substring(42);
-  
+
+  const base = qrData.substring(0, baseLen);
+  const extraWithPadding = qrData.substring(baseLen);
+
   // パディング開始位置を検出
   const paddingStart = detectPaddingStart(extraWithPadding, 0);
-  
+
   if (paddingStart >= 0) {
     // パディングが見つかった場合、その手前までをextraとする
     const extra = extraWithPadding.substring(0, paddingStart);
     return { base, extra };
   }
-  
+
   // パディングが見つからない場合、そのまま返す
   return { base, extra: extraWithPadding };
 };

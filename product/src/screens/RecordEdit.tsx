@@ -17,7 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useLocalSearchParams } from 'expo-router';
 
-import { saveBetRecord, getBetRecordById, updateBetRecord, deleteBetRecord } from '../services/db/crud';
+import { saveBetRecord, saveBetRecords, getBetRecordById, updateBetRecord, deleteBetRecord } from '../services/db/crud';
 import { BET_TYPES } from '../constants/betTypes';
 import type { BetRecordInput, Place, BetType, BetRecord } from '../types/betRecord';
 import type { JRAQRData } from '../services/qr';
@@ -166,6 +166,25 @@ export default function RecordEditScreen({ qrData = null }: Props) {
       }
 
       // ===== 新規保存 =====
+      // 複数口(normal_entries > 1)の場合、1口=1レコードとして分割保存
+      const entries = qrData?.normal_entries;
+      if (entries && entries.length > 1) {
+        const inputs: BetRecordInput[] = entries.map((entry) => ({
+          date,
+          place: place as Place,
+          race_no: Number(raceNo),
+          bet_type: entry.bet_type,
+          investment: entry.investment,
+          return: 0,
+        }));
+
+        await saveBetRecords(inputs);
+        Alert.alert('登録完了', `${entries.length}口の馬券を保存しました`);
+        navigation.goBack();
+        return;
+      }
+
+      // 単口の場合（従来通り）
       const input: BetRecordInput = {
         date,
         place: place as Place,
@@ -289,6 +308,10 @@ export default function RecordEditScreen({ qrData = null }: Props) {
                   </Text>
                 </View>
               ))}
+
+              <Text style={[styles.bulkSaveNotice, { color: colors.subText }]}>
+                {qrData.normal_entries.length}口の馬券として保存します（回収額は後から個別に編集できます）
+              </Text>
             </View>
           )}
 
@@ -440,7 +463,11 @@ export default function RecordEditScreen({ qrData = null }: Props) {
             onPress={handleSave}
           >
             <Text style={[styles.saveButtonText, { color: colors.primaryText }]}>
-              {isEdit ? '更新する' : '登録する'}
+              {isEdit
+                ? '更新する'
+                : qrData?.normal_entries && qrData.normal_entries.length > 1
+                  ? `${qrData.normal_entries.length}口を一括登録する`
+                  : '登録する'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -561,5 +588,10 @@ const styles = StyleSheet.create({
   entryText: {
     fontSize: 12,
     marginTop: 2,
+  },
+  bulkSaveNotice: {
+    fontSize: 12,
+    marginTop: 12,
+    textAlign: 'center',
   },
 });

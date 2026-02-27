@@ -1,19 +1,7 @@
-import { useCallback, useState } from 'react';
-import { useFocusEffect } from '@react-navigation/native';
-import { getAllBetRecords } from '@/src/services/db/crud';
+import { useMemo } from 'react';
+import type { BetRecord } from '@/src/types/betRecord';
 import { calcDailyTrend, type TrendPoint } from '@/src/utils/stats';
 
-export const useDailyTrend = () => {
-  const [trend, setTrend] = useState<TrendPoint[]>([]);
-
-  useFocusEffect(useCallback(() => {
-    load();
-  }, []));
-
-  const load = async () => {
-    const records = await getAllBetRecords();
-    setTrend(calcDailyTrend(records));
-  };
-
-  return trend;
+export const useDailyTrend = (records: BetRecord[]): TrendPoint[] => {
+  return useMemo(() => calcDailyTrend(records), [records]);
 };

@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TextInput,
+  TextInput as RNTextInput,
   TouchableOpacity,
   Alert,
   KeyboardAvoidingView,
@@ -11,16 +12,19 @@ import {
   ScrollView,
   Modal,
   useColorScheme,
+  ActivityIndicator,
+  Keyboard,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useLocalSearchParams } from 'expo-router';
 
-import { saveBetRecord, getBetRecordById, updateBetRecord, deleteBetRecord } from '../services/db/crud';
+import { saveBetRecord, saveBetRecords, getBetRecordById, updateBetRecord, deleteBetRecord } from '../services/db/crud';
 import { BET_TYPES } from '../constants/betTypes';
 import type { BetRecordInput, Place, BetType, BetRecord } from '../types/betRecord';
 import type { JRAQRData } from '../services/qr';
+import { Toast } from '../components/common/Toast';
 
 type Props = {
   qrData?: JRAQRData | null; // optional にして共存
@@ -73,10 +77,19 @@ export default function RecordEditScreen({ qrData = null }: Props) {
   const [betType, setBetType] = useState<BetType | ''>('');
   const [returnAmount, setReturnAmount] = useState('0');
 
+  const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [toast, setToast] = useState({ visible: false, message: '' });
+
+  const raceNoRef = useRef<RNTextInput>(null);
+  const investmentRef = useRef<RNTextInput>(null);
+  const returnRef = useRef<RNTextInput>(null);
+
   // ===== 編集モード：idから既存データ読み込み =====
   useEffect(() => {
     if (!isEdit || idNum === null) return;
 
+    setIsLoading(true);
     (async () => {
       try {
         const record = await getBetRecordById(idNum);
@@ -95,6 +108,8 @@ export default function RecordEditScreen({ qrData = null }: Props) {
         setReturnAmount(String(record.return));
       } catch {
         Alert.alert('エラー', 'データの読み込みに失敗しました');
+      } finally {
+        setIsLoading(false);
       }
     })();
   }, [isEdit, idNum, navigation]);
@@ -104,7 +119,12 @@ export default function RecordEditScreen({ qrData = null }: Props) {
     if (isEdit) return; // 編集中はQR反映しない
     if (!qrData) return;
 
-    setDate(new Date());
+    // estimatedDateがあればそれを使用、なければ今日の日付
+    if (qrData.estimatedDate) {
+      setDate(new Date(qrData.estimatedDate + 'T00:00:00'));
+    } else {
+      setDate(new Date());
+    }
     setPlace((qrData.place as Place) ?? '');
     setRaceNo(qrData.race_no ? String(qrData.race_no) : '');
     setInvestment(qrData.total_investment ? String(qrData.total_investment) : '');
@@ -125,8 +145,8 @@ export default function RecordEditScreen({ qrData = null }: Props) {
         onPress: async () => {
           try {
             await deleteBetRecord(idNum);
-            Alert.alert('削除完了', 'レコードを削除しました');
-            navigation.goBack();
+            setToast({ visible: true, message: 'レコードを削除しました' });
+            setTimeout(() => navigation.goBack(), 1500);
           } catch {
             Alert.alert('エラー', '削除に失敗しました');
           }
@@ -135,11 +155,24 @@ export default function RecordEditScreen({ qrData = null }: Props) {
     ]);
   };
 
+  const validate = (): boolean => {
+    const newErrors: Record<string, string> = {};
+    if (!place) newErrors.place = '競馬場を入力してください';
+    if (!raceNo) newErrors.raceNo = 'レース番号を入力してください';
+    else if (parseInt(raceNo) < 1 || parseInt(raceNo) > 16)
+      newErrors.raceNo = '1〜16の範囲で入力してください';
+    if (!investment) newErrors.investment = '投資額を入力してください';
+    else if (parseInt(investment) < 0)
+      newErrors.investment = '0以上の値を入力してください';
+    if (!betType) newErrors.betType = '式別を選択してください';
+    if (returnAmount && parseInt(returnAmount) < 0)
+      newErrors.returnAmount = '0以上の値を入力してください';
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSave = async () => {
-    if (!place || !raceNo || !investment || !betType) {
-      Alert.alert('入力不足', '必須項目をすべて入力してください');
-      return;
-    }
+    if (!validate()) return;
 
     try {
       if (isEdit && idNum !== null) {
@@ -160,12 +193,31 @@ export default function RecordEditScreen({ qrData = null }: Props) {
           return;
         }
 
-        Alert.alert('更新完了', '収支を更新しました');
-        navigation.goBack();
+        setToast({ visible: true, message: '収支を更新しました' });
+        setTimeout(() => navigation.goBack(), 1500);
         return;
       }
 
       // ===== 新規保存 =====
+      // 複数口(normal_entries > 1)の場合、1口=1レコードとして分割保存
+      const entries = qrData?.normal_entries;
+      if (entries && entries.length > 1) {
+        const inputs: BetRecordInput[] = entries.map((entry) => ({
+          date,
+          place: place as Place,
+          race_no: Number(raceNo),
+          bet_type: entry.bet_type,
+          investment: entry.investment,
+          return: 0,
+        }));
+
+        await saveBetRecords(inputs);
+        setToast({ visible: true, message: `${entries.length}口の馬券を保存しました` });
+        setTimeout(() => navigation.goBack(), 1500);
+        return;
+      }
+
+      // 単口の場合（従来通り）
       const input: BetRecordInput = {
         date,
         place: place as Place,
@@ -176,8 +228,8 @@ export default function RecordEditScreen({ qrData = null }: Props) {
       };
 
       await saveBetRecord(input);
-      Alert.alert('登録完了', '収支を保存しました');
-      navigation.goBack();
+      setToast({ visible: true, message: '収支を保存しました' });
+      setTimeout(() => navigation.goBack(), 1500);
     } catch {
       Alert.alert('エラー', isEdit ? '更新に失敗しました' : '保存に失敗しました');
     }
@@ -189,6 +241,11 @@ export default function RecordEditScreen({ qrData = null }: Props) {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}
       >
+        {isLoading ? (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.bg }}>
+            <ActivityIndicator />
+          </View>
+        ) : (
         <ScrollView
           contentContainerStyle={[styles.scrollContent, { backgroundColor: colors.bg }]}
           keyboardShouldPersistTaps="handled"
@@ -199,15 +256,23 @@ export default function RecordEditScreen({ qrData = null }: Props) {
 
           {/* 日付 */}
           <Text style={[styles.label, { color: colors.subText }]}>日付</Text>
+          {qrData && qrData.year !== null && (
+            <Text style={[styles.qrDateHint, { color: colors.subText }]}>
+              QR情報: {2000 + qrData.year}年 {qrData.round ?? '?'}回 {qrData.day ?? '?'}日目 — 正しい日付を設定してください
+            </Text>
+          )}
           <TouchableOpacity
             style={[
               styles.input,
               {
                 backgroundColor: colors.inputBg,
-                borderColor: colors.border,
+                borderColor: qrData && !qrData.estimatedDate ? '#FF9500' : colors.border,
+                borderWidth: qrData && !qrData.estimatedDate ? 1.5 : 1,
               },
             ]}
             onPress={() => setShowDatePicker(true)}
+            accessibilityLabel="日付"
+            accessibilityHint="タップして日付を選択します"
           >
             <Text style={{ color: colors.text }}>{date.toLocaleDateString('ja-JP')}</Text>
           </TouchableOpacity>
@@ -222,10 +287,16 @@ export default function RecordEditScreen({ qrData = null }: Props) {
             onChangeText={(v) => setPlace(v as Place)}
             placeholder="例：東京"
             placeholderTextColor={colors.subText}
+            returnKeyType="next"
+            onSubmitEditing={() => raceNoRef.current?.focus()}
+            accessibilityLabel="開催場"
+            accessibilityHint="競馬場名を入力してください"
           />
+          {errors.place && <Text style={styles.errorText}>{errors.place}</Text>}
 
           <Text style={[styles.label, { color: colors.subText }]}>レース番号</Text>
           <TextInput
+            ref={raceNoRef}
             style={[
               styles.input,
               { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text },
@@ -235,10 +306,16 @@ export default function RecordEditScreen({ qrData = null }: Props) {
             keyboardType="number-pad"
             placeholder="例：11"
             placeholderTextColor={colors.subText}
+            returnKeyType="next"
+            onSubmitEditing={() => investmentRef.current?.focus()}
+            accessibilityLabel="レース番号"
+            accessibilityHint="1から16の数字を入力してください"
           />
+          {errors.raceNo && <Text style={styles.errorText}>{errors.raceNo}</Text>}
 
           <Text style={[styles.label, { color: colors.subText }]}>投資額（円）</Text>
           <TextInput
+            ref={investmentRef}
             style={[
               styles.input,
               { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text },
@@ -248,7 +325,12 @@ export default function RecordEditScreen({ qrData = null }: Props) {
             keyboardType="number-pad"
             placeholder="例：1000"
             placeholderTextColor={colors.subText}
+            returnKeyType="next"
+            onSubmitEditing={() => returnRef.current?.focus()}
+            accessibilityLabel="投資額"
+            accessibilityHint="円単位で投資額を入力してください"
           />
+          {errors.investment && <Text style={styles.errorText}>{errors.investment}</Text>}
 
           {/* 複合馬券の各口を表示 */}
           {qrData?.normal_entries && qrData.normal_entries.length > 1 && (
@@ -289,6 +371,10 @@ export default function RecordEditScreen({ qrData = null }: Props) {
                   </Text>
                 </View>
               ))}
+
+              <Text style={[styles.bulkSaveNotice, { color: colors.subText }]}>
+                {qrData.normal_entries.length}口の馬券として保存します（回収額は後から個別に編集できます）
+              </Text>
             </View>
           )}
 
@@ -377,6 +463,9 @@ export default function RecordEditScreen({ qrData = null }: Props) {
                     },
                   ]}
                   onPress={() => setBetType(type)}
+                  accessibilityLabel={`${type}`}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
                 >
                   <Text
                     style={[
@@ -390,9 +479,11 @@ export default function RecordEditScreen({ qrData = null }: Props) {
               );
             })}
           </View>
+          {errors.betType && <Text style={styles.errorText}>{errors.betType}</Text>}
 
           <Text style={[styles.label, { color: colors.subText }]}>回収額（円）</Text>
           <TextInput
+            ref={returnRef}
             style={[
               styles.input,
               { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text },
@@ -402,8 +493,20 @@ export default function RecordEditScreen({ qrData = null }: Props) {
             keyboardType="number-pad"
             placeholder="例：0"
             placeholderTextColor={colors.subText}
+            returnKeyType="done"
+            onSubmitEditing={() => Keyboard.dismiss()}
+            accessibilityLabel="回収額"
+            accessibilityHint="円単位で回収額を入力してください"
           />
+          {errors.returnAmount && <Text style={styles.errorText}>{errors.returnAmount}</Text>}
         </ScrollView>
+        )}
+
+        <Toast
+          message={toast.message}
+          visible={toast.visible}
+          onHide={() => setToast({ visible: false, message: '' })}
+        />
 
         <View
           style={[
@@ -415,6 +518,8 @@ export default function RecordEditScreen({ qrData = null }: Props) {
             <TouchableOpacity
               style={styles.deleteButton}
               onPress={handleDelete}
+              accessibilityLabel="削除"
+              accessibilityRole="button"
             >
               <Text style={styles.saveButtonText}>削除する</Text>
             </TouchableOpacity>
@@ -438,9 +543,15 @@ export default function RecordEditScreen({ qrData = null }: Props) {
               },
             ]}
             onPress={handleSave}
+            accessibilityLabel="保存"
+            accessibilityRole="button"
           >
             <Text style={[styles.saveButtonText, { color: colors.primaryText }]}>
-              {isEdit ? '更新する' : '登録する'}
+              {isEdit
+                ? '更新する'
+                : qrData?.normal_entries && qrData.normal_entries.length > 1
+                  ? `${qrData.normal_entries.length}口を一括登録する`
+                  : '登録する'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -480,6 +591,12 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, fontWeight: 'bold', marginBottom: 16 },
 
   label: { marginTop: 12, marginBottom: 4 },
+
+  qrDateHint: {
+    fontSize: 12,
+    marginBottom: 4,
+    fontStyle: 'italic',
+  },
 
   input: {
     borderWidth: 1,
@@ -559,6 +676,16 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   entryText: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  bulkSaveNotice: {
+    fontSize: 12,
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  errorText: {
+    color: '#F44336',
     fontSize: 12,
     marginTop: 2,
   },

@@ -20,7 +20,7 @@ import type { FormationSelection } from './qrTypes';
  * @returns フォーメーションの選択情報またはnull
  */
 export const extractFormationSelection = (code: string): FormationSelection | null => {
-  if (code.length < 103) return null; // 最低限の長さチェック（式別1桁+固定0 1桁+54桁ブロック+金額5桁）
+  if (code.length < 61) return null; // 最低限の長さチェック（式別1桁+固定0 1桁+選択54桁+金額5桁=61桁）
   
   // 式別（43桁目、extraの先頭）
   const betTypeCode = code.charAt(0);

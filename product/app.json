@@ -2,7 +2,7 @@
   "expo": {
     "name": "MAKEN",
     "slug": "product",
-    "version": "1.0.1",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "product",
@@ -15,7 +15,6 @@
         "ITSAppUsesNonExemptEncryption": false
       },
       "bundleIdentifier": "com.yuyaosanai.product",
-       "buildNumber": "2"
     },
     "android": {
       "adaptiveIcon": {

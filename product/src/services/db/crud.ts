@@ -65,6 +65,40 @@ export const saveBetRecord = async (input: BetRecordInput): Promise<BetRecord> =
 };
 
 /**
+ * 複数のBetRecordを一括保存する
+ *
+ * @param inputs - 保存するデータの配列（idは自動生成）
+ * @returns 保存されたBetRecordの配列（idを含む）
+ */
+export const saveBetRecords = async (inputs: BetRecordInput[]): Promise<BetRecord[]> => {
+  try {
+    const db = getDatabase();
+    const records: BetRecord[] = [];
+
+    await db.withTransactionAsync(async () => {
+      for (const input of inputs) {
+        const result = await db.runAsync(
+          `INSERT INTO bet_records (date, place, race_no, bet_type, investment, return) VALUES (?, ?, ?, ?, ?, ?)`,
+          dateToTimestamp(input.date),
+          input.place,
+          input.race_no,
+          input.bet_type,
+          input.investment,
+          input.return
+        );
+        records.push({ id: result.lastInsertRowId, ...input });
+      }
+    });
+
+    console.log('[DB] BetRecords bulk saved:', records.length);
+    return records;
+  } catch (error) {
+    console.error('[DB] Error bulk saving BetRecords:', error);
+    throw error;
+  }
+};
+
+/**
  * 指定されたIDのBetRecordを削除する
  * 
  * @param id - 削除するレコードのID

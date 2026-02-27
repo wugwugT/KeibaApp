@@ -6,22 +6,24 @@ export type GroupStats = {
   return: number;
   profit: number;
   recoveryRate: number; // %
+  betCount: number;
 };
 
-const toStats = (key: string, investment: number, ret: number): GroupStats => {
+const toStats = (key: string, investment: number, ret: number, count: number): GroupStats => {
   const profit = ret - investment;
   const recoveryRate = investment === 0 ? 0 : Math.round((ret / investment) * 100);
-  return { key, investment, return: ret, profit, recoveryRate };
+  return { key, investment, return: ret, profit, recoveryRate, betCount: count };
 };
 
 // 既存：競馬場別（ANA-001）
 // ※この関数は PlaceStats っぽい返し（placeキー）なのでそのまま維持
 export const calcStatsByPlace = (records: BetRecord[]) => {
-  const map: Record<string, { investment: number; return: number }> = {};
+  const map: Record<string, { investment: number; return: number; count: number }> = {};
   records.forEach((r) => {
-    map[r.place] ??= { investment: 0, return: 0 };
+    map[r.place] ??= { investment: 0, return: 0, count: 0 };
     map[r.place].investment += r.investment;
     map[r.place].return += r.return;
+    map[r.place].count += 1;
   });
   return Object.entries(map).map(([place, v]) => ({
     place,
@@ -29,26 +31,28 @@ export const calcStatsByPlace = (records: BetRecord[]) => {
     return: v.return,
     profit: v.return - v.investment,
     recoveryRate: v.investment === 0 ? 0 : Math.round((v.return / v.investment) * 100),
+    betCount: v.count,
   }));
 };
 
 // ✅ ANA-002：式別分析
 export const calcStatsByBetType = (records: BetRecord[]): GroupStats[] => {
-  const map: Record<string, { investment: number; return: number }> = {};
+  const map: Record<string, { investment: number; return: number; count: number }> = {};
 
   records.forEach((r) => {
     const key = r.bet_type || '未設定';
-    map[key] ??= { investment: 0, return: 0 };
+    map[key] ??= { investment: 0, return: 0, count: 0 };
     map[key].investment += r.investment;
     map[key].return += r.return;
+    map[key].count += 1;
   });
 
-  return Object.entries(map).map(([key, v]) => toStats(key, v.investment, v.return));
+  return Object.entries(map).map(([key, v]) => toStats(key, v.investment, v.return, v.count));
 };
 
 // ✅ ANA-003：レース番号別分析（1R〜12R）
 export const calcStatsByRaceNo = (records: BetRecord[]): GroupStats[] => {
-  const map: Record<string, { investment: number; return: number }> = {};
+  const map: Record<string, { investment: number; return: number; count: number }> = {};
 
   records.forEach((r) => {
     // race_no が不正/未設定でも落ちないように保険
@@ -56,12 +60,13 @@ export const calcStatsByRaceNo = (records: BetRecord[]): GroupStats[] => {
       typeof r.race_no === 'number' && Number.isFinite(r.race_no) ? r.race_no : 0;
 
     const key = rn > 0 ? `${rn}R` : '未設定';
-    map[key] ??= { investment: 0, return: 0 };
+    map[key] ??= { investment: 0, return: 0, count: 0 };
     map[key].investment += r.investment;
     map[key].return += r.return;
+    map[key].count += 1;
   });
 
-  return Object.entries(map).map(([key, v]) => toStats(key, v.investment, v.return));
+  return Object.entries(map).map(([key, v]) => toStats(key, v.investment, v.return, v.count));
 };
 
 export type TrendPoint = {

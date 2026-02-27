@@ -7,7 +7,8 @@ import type { BarcodeSettings } from 'expo-camera';
 
 export {
     extractBetTypeFrom95DigitCode, extractDayFrom95DigitCode,
-    extractJRAItemsFromQR, extractRoundFrom95DigitCode, extractTicketNoFrom95DigitCode, extractYearFrom95DigitCode, isValidQRData,
+    extractJRAItemsFromQR, extractRoundFrom95DigitCode, extractTicketNoFrom95DigitCode, extractYearFrom95DigitCode,
+    isValidQRData, isPartialQRData, combineQRData,
     QR_CODE_TYPES,
     type JRAQRData
 } from './qrScanner';

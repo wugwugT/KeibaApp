@@ -3,6 +3,8 @@ import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import Svg, { Polyline, Line, Circle, Text as SvgText } from 'react-native-svg';
 import { ThemedView } from '@/components/themed-view';
 import { ThemedText } from '@/components/themed-text';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Colors } from '@/constants/theme';
 
 export type CumulativeRow = {
   date: string; // YYYY-MM-DD
@@ -21,6 +23,8 @@ const shortDate = (ymd: string) => ymd.slice(5); // "MM-DD"
 export const CumulativeLineChart = ({ data, height = 220 }: Props) => {
   const { width } = useWindowDimensions();
   const chartWidth = Math.max(280, width - 32); // 親がpadding16前提
+  const scheme = useColorScheme() ?? 'light';
+  const c = Colors[scheme];
 
   const layout = useMemo(() => {
     const sorted = [...data].sort((a, b) => (a.date < b.date ? -1 : 1));
@@ -71,7 +75,7 @@ export const CumulativeLineChart = ({ data, height = 220 }: Props) => {
     const latest = sorted.length ? sorted[sorted.length - 1] : null;
 
     // 線色：最新の累積がプラスなら緑、マイナスなら赤
-    const lineColor = (latest?.cumulativeProfit ?? 0) >= 0 ? '#4CAF50' : '#F44336';
+    const lineColor = (latest?.cumulativeProfit ?? 0) >= 0 ? c.profit : c.loss;
 
     return {
       sorted,
@@ -91,7 +95,7 @@ export const CumulativeLineChart = ({ data, height = 220 }: Props) => {
       minIdx,
       maxIdx,
     };
-  }, [data, chartWidth, height]);
+  }, [data, chartWidth, height, c]);
 
   if (data.length === 0) {
     return (
@@ -122,7 +126,7 @@ export const CumulativeLineChart = ({ data, height = 220 }: Props) => {
           y1={layout.padTop}
           x2={layout.padLeft}
           y2={height - layout.padBottom}
-          stroke="rgba(255,255,255,0.18)"
+          stroke={c.chartAxis}
           strokeWidth={1}
         />
         <Line
@@ -130,7 +134,7 @@ export const CumulativeLineChart = ({ data, height = 220 }: Props) => {
           y1={height - layout.padBottom}
           x2={chartWidth - layout.padRight}
           y2={height - layout.padBottom}
-          stroke="rgba(255,255,255,0.18)"
+          stroke={c.chartAxis}
           strokeWidth={1}
         />
 
@@ -140,7 +144,7 @@ export const CumulativeLineChart = ({ data, height = 220 }: Props) => {
           y1={layout.zeroY}
           x2={chartWidth - layout.padRight}
           y2={layout.zeroY}
-          stroke="rgba(255,255,255,0.28)"
+          stroke={c.chartAxisStrong}
           strokeWidth={1}
         />
 
@@ -148,7 +152,7 @@ export const CumulativeLineChart = ({ data, height = 220 }: Props) => {
         <SvgText
           x={layout.padLeft - 6}
           y={layout.padTop + 10}
-          fill="rgba(255,255,255,0.75)"
+          fill={c.chartLabel}
           fontSize={12}
           textAnchor="end">
           {fmtYen(layout.maxV)}
@@ -157,7 +161,7 @@ export const CumulativeLineChart = ({ data, height = 220 }: Props) => {
         <SvgText
           x={layout.padLeft - 6}
           y={layout.zeroY + 4}
-          fill="rgba(255,255,255,0.75)"
+          fill={c.chartLabel}
           fontSize={12}
           textAnchor="end">
           {fmtYen(0)}
@@ -166,7 +170,7 @@ export const CumulativeLineChart = ({ data, height = 220 }: Props) => {
         <SvgText
           x={layout.padLeft - 6}
           y={height - layout.padBottom}
-          fill="rgba(255,255,255,0.75)"
+          fill={c.chartLabel}
           fontSize={12}
           textAnchor="end">
           {fmtYen(layout.minV)}
@@ -176,7 +180,7 @@ export const CumulativeLineChart = ({ data, height = 220 }: Props) => {
         <SvgText
           x={layout.padLeft}
           y={height - 6}
-          fill="rgba(255,255,255,0.75)"
+          fill={c.chartLabel}
           fontSize={12}
           textAnchor="start">
           {shortDate(firstDate)}
@@ -185,7 +189,7 @@ export const CumulativeLineChart = ({ data, height = 220 }: Props) => {
         <SvgText
           x={chartWidth - layout.padRight}
           y={height - 6}
-          fill="rgba(255,255,255,0.75)"
+          fill={c.chartLabel}
           fontSize={12}
           textAnchor="end">
           {shortDate(lastDate)}
@@ -210,7 +214,7 @@ export const CumulativeLineChart = ({ data, height = 220 }: Props) => {
               cx={p.x}
               cy={p.y}
               r={isExtreme ? 4.2 : 3}
-              fill={isExtreme ? '#FFFFFF' : layout.lineColor}
+              fill={isExtreme ? c.text : layout.lineColor}
               opacity={0.95}
             />
           );

@@ -300,6 +300,42 @@ export const extractSalesLocationFrom95DigitCode = (code: string): string | null
 };
 
 /**
+ * QRコードの年・月・日情報からレース日付を推定する
+ *
+ * QRコードの7-8桁が年、9-10桁が月、11-12桁が日に対応する。
+ *
+ * @param year - QRコードから抽出された2桁の年（例: 26 → 2026年）
+ * @param month - QRコードから抽出された月（1-12）
+ * @param day - QRコードから抽出された日（1-31）
+ * @returns 推定されたレース日付、またはnull
+ */
+export const estimateRaceDate = (
+  year: number | null,
+  month: number | null,
+  day: number | null,
+): Date | null => {
+  if (year === null) return null;
+
+  const fullYear = year < 50 ? 2000 + year : 1900 + year;
+
+  // 月・日が取得できていれば実際の日付を組み立てる
+  if (month !== null && day !== null) {
+    const date = new Date(fullYear, month - 1, day);
+    // Date コンストラクタが自動補正しない（入力と一致する）ことを確認
+    if (
+      date.getFullYear() === fullYear &&
+      date.getMonth() === month - 1 &&
+      date.getDate() === day
+    ) {
+      return date;
+    }
+  }
+
+  // 月・日が不明な場合は年だけ返す（1/1をフォールバック）
+  return new Date(fullYear, 0, 1);
+};
+
+/**
  * パディングパターンを検出し、有効データの終端位置を返す
  * 
  * パディングは「0123456789」の周期パターンで、開始位置から末尾まで

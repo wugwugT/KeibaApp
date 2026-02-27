@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useTheme } from '@react-navigation/native';
+import { Colors } from '@/constants/theme';
 import { BetRecord } from '../../types/betRecord';
 
 type Props = {
@@ -12,10 +13,11 @@ export const BetRecordCard = ({ record, onPress }: Props) => {
 
   const profit = record.return - record.investment;
 
+  const s = dark ? 'dark' : 'light';
   const profitColor =
-    profit > 0 ? '#2ecc71' :
-    profit < 0 ? '#e74c3c' :
-    '#7f8c8d';
+    profit > 0 ? Colors[s].profit :
+    profit < 0 ? Colors[s].loss :
+    Colors[s].neutral;
 
   // ダーク/ライトで薄い文字の見え方を調整（themeに無いので自前で）
   const subTextColor = dark ? 'rgba(255,255,255,0.75)' : 'rgba(0,0,0,0.6)';

@@ -84,7 +84,12 @@ export const initializeDatabaseAsync = async (forceRecreate: boolean = false): P
     
     // テーブル作成（非同期処理）
     await database.execAsync(CREATE_TABLE_SQL);
-    
+
+    // インデックス作成（検索パフォーマンス向上）
+    await database.execAsync('CREATE INDEX IF NOT EXISTS idx_bet_records_date ON bet_records(date);');
+    await database.execAsync('CREATE INDEX IF NOT EXISTS idx_bet_records_place ON bet_records(place);');
+    await database.execAsync('CREATE INDEX IF NOT EXISTS idx_bet_records_race_no ON bet_records(race_no);');
+
     console.log('[DB] Database initialized successfully');
   } catch (error) {
     console.error('[DB] Error initializing database:', error);

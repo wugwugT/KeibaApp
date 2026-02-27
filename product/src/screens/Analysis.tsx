@@ -12,10 +12,19 @@ import {
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { runOnJS } from 'react-native-reanimated';
+import Animated, {
+  runOnJS,
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  interpolate,
+} from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Colors } from '@/constants/theme';
 
 import { usePlaceStats } from '@/src/hooks/usePlaceStats';
 import { useBetTypeStats } from '@/src/hooks/useBetTypeStats';
@@ -65,6 +74,8 @@ type CumulativeRow = {
 };
 
 export const Analysis = () => {
+  const scheme = useColorScheme() ?? 'light';
+  const c = Colors[scheme];
   const [mode, setMode] = useState<Mode>('place');
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [allRecords, setAllRecords] = useState<BetRecord[]>([]);
@@ -74,13 +85,25 @@ export const Analysis = () => {
 
   const MODES: Mode[] = ['place', 'betType', 'raceNo', 'trend', 'cumulative', 'monthly'];
 
+  // ===== スライドアニメーション =====
+  const slideAnim = useSharedValue(1);
+  const slideDirection = useSharedValue(0); // 1=右から, -1=左から
+
+  const slideStyle = useAnimatedStyle(() => ({
+    opacity: slideAnim.value,
+    transform: [
+      { translateX: interpolate(slideAnim.value, [0, 1], [slideDirection.value * 50, 0]) },
+    ],
+  }));
+
   const changeTab = (next: Mode) => {
-    LayoutAnimation.configureNext(LayoutAnimation.create(
-      200,
-      LayoutAnimation.Types.easeInEaseOut,
-      LayoutAnimation.Properties.opacity,
-    ));
+    const oldIdx = MODES.indexOf(mode);
+    const newIdx = MODES.indexOf(next);
+    slideDirection.value = newIdx > oldIdx ? 1 : -1;
+    slideAnim.value = 0;
     setMode(next);
+    setExpandedKey(null);
+    slideAnim.value = withTiming(1, { duration: 250 });
     if (process.env.EXPO_OS === 'ios') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
@@ -225,6 +248,12 @@ export const Analysis = () => {
     });
   }, [mode, monthlyStats]);
 
+  // トレンドバー用の最大値（見た目スケール）
+  const trendMaxAbsProfit = useMemo(() => {
+    if (mode !== 'trend') return 1;
+    return Math.max(...trend.map((t) => Math.abs(t.profit)), 1);
+  }, [mode, trend]);
+
   // ローディング表示
   if (isLoading) {
     return (
@@ -246,7 +275,7 @@ export const Analysis = () => {
   if (isEmpty) {
     return (
       <ThemedView style={styles.center}>
-        <ThemedText style={{ fontSize: 48 }}>📊</ThemedText>
+        <Ionicons name="bar-chart-outline" size={48} color={c.text} />
         <ThemedText style={{ fontSize: 18, fontWeight: '600', marginTop: 8 }}>
           データがありません
         </ThemedText>
@@ -270,12 +299,6 @@ export const Analysis = () => {
       ? '累積収支'
       : '月別集計';
 
-  // トレンドバー用の最大値（見た目スケール）
-  const trendMaxAbsProfit = useMemo(() => {
-    if (mode !== 'trend') return 1;
-    return Math.max(...trend.map((t) => Math.abs(t.profit)), 1);
-  }, [mode, trend]);
-
   const segmentLabels: Record<Mode, string> = {
     place: '競馬場',
     betType: '式別',
@@ -291,12 +314,17 @@ export const Analysis = () => {
         <TouchableOpacity
           key={m}
           onPress={() => setMode(m)}
-          style={[styles.segBtn, mode === m && styles.segActive]}
+          style={[
+            styles.segBtn,
+            { backgroundColor: mode === m ? c.segmentActive : c.segmentInactive },
+          ]}
           accessibilityLabel={`${segmentLabels[m]}タブ`}
           accessibilityRole="tab"
           accessibilityState={{ selected: mode === m }}
         >
-          <ThemedText>{segmentLabels[m]}</ThemedText>
+          <ThemedText style={mode === m ? { color: c.segmentActiveText } : undefined}>
+            {segmentLabels[m]}
+          </ThemedText>
         </TouchableOpacity>
       ))}
     </View>
@@ -307,10 +335,13 @@ export const Analysis = () => {
       <ThemedView style={styles.sectionCard}>
         <ThemedText type="subtitle">ベスト / ワースト（日別）</ThemedText>
 
-        <ThemedView style={[styles.innerCard, styles.bestCard]}>
-          <ThemedText type="subtitle">🏆 ベスト</ThemedText>
+        <ThemedView style={[styles.innerCard, styles.bestCard, { borderColor: c.profit + '40' }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Ionicons name="trophy" size={20} color={c.profit} />
+            <ThemedText type="subtitle">ベスト</ThemedText>
+          </View>
           <ThemedText>{best.date}</ThemedText>
-          <ThemedText style={{ color: '#4CAF50' }}>
+          <ThemedText style={{ color: c.profit }}>
             収支: +{best.profit}円
           </ThemedText>
           <ThemedText>回収率: {best.recoveryRate}%</ThemedText>
@@ -319,10 +350,13 @@ export const Analysis = () => {
           </ThemedText>
         </ThemedView>
 
-        <ThemedView style={[styles.innerCard, styles.worstCard]}>
-          <ThemedText type="subtitle">💀 ワースト</ThemedText>
+        <ThemedView style={[styles.innerCard, styles.worstCard, { borderColor: c.loss + '40' }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Ionicons name="skull-outline" size={20} color={c.loss} />
+            <ThemedText type="subtitle">ワースト</ThemedText>
+          </View>
           <ThemedText>{worst.date}</ThemedText>
-          <ThemedText style={{ color: '#F44336' }}>
+          <ThemedText style={{ color: c.loss }}>
             収支: {worst.profit}円
           </ThemedText>
           <ThemedText>回収率: {worst.recoveryRate}%</ThemedText>
@@ -331,10 +365,15 @@ export const Analysis = () => {
           </ThemedText>
         </ThemedView>
 
-        <ThemedView style={[styles.innerCard, styles.streakCard]}>
-          <ThemedText>
-            🔥最長連勝: {maxWinStreak}日 / 💀最長連敗: {maxLoseStreak}日
-          </ThemedText>
+        <ThemedView style={[styles.innerCard, styles.streakCard, { borderColor: c.border }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Ionicons name="flame" size={16} color={c.profit} />
+            <ThemedText>最長連勝: {maxWinStreak}日</ThemedText>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+            <Ionicons name="skull-outline" size={16} color={c.loss} />
+            <ThemedText>最長連敗: {maxLoseStreak}日</ThemedText>
+          </View>
         </ThemedView>
       </ThemedView>
     ) : null;
@@ -343,7 +382,8 @@ export const Analysis = () => {
   if (mode === 'monthly') {
     return (
       <GestureDetector gesture={swipeGesture}>
-      <FlatList
+      <Animated.FlatList
+        style={slideStyle}
         data={monthlyRows}
         keyExtractor={(item) => item.month}
         contentContainerStyle={styles.list}
@@ -364,7 +404,7 @@ export const Analysis = () => {
           </ThemedView>
         }
         renderItem={({ item }) => {
-          const profitColor = item.profit >= 0 ? '#4CAF50' : '#F44336';
+          const profitColor = item.profit >= 0 ? c.profit : c.loss;
           const isExpanded = expandedKey === item.month;
           const filteredRecords = isExpanded
             ? getFilteredRecords(item.month)
@@ -395,7 +435,7 @@ export const Analysis = () => {
                 </ThemedText>
 
                 {isExpanded && (
-                  <View style={styles.expandedContent}>
+                  <View style={[styles.expandedContent, { borderTopColor: c.border }]}>
                     <ThemedText style={styles.recordsHeader}>
                       該当レコード ({filteredRecords.length}件)
                     </ThemedText>
@@ -426,7 +466,8 @@ export const Analysis = () => {
   if (mode === 'trend') {
     return (
       <GestureDetector gesture={swipeGesture}>
-      <FlatList
+      <Animated.FlatList
+        style={slideStyle}
         data={trend}
         keyExtractor={(item) => item.date}
         contentContainerStyle={styles.list}
@@ -447,7 +488,7 @@ export const Analysis = () => {
           </ThemedView>
         }
         renderItem={({ item }) => {
-          const profitColor = item.profit >= 0 ? '#4CAF50' : '#F44336';
+          const profitColor = item.profit >= 0 ? c.profit : c.loss;
           const widthPct = Math.min(
             100,
             (Math.abs(item.profit) / trendMaxAbsProfit) * 100
@@ -469,7 +510,7 @@ export const Analysis = () => {
                   </ThemedText>
                 </View>
 
-                <View style={styles.trendBarBg}>
+                <View style={[styles.trendBarBg, { backgroundColor: c.subtle }]}>
                   <View
                     style={[
                       styles.trendBar,
@@ -489,7 +530,7 @@ export const Analysis = () => {
                 <ThemedText>回収率: {item.recoveryRate}%</ThemedText>
 
                 {isExpanded && (
-                  <View style={styles.expandedContent}>
+                  <View style={[styles.expandedContent, { borderTopColor: c.border }]}>
                     <ThemedText style={styles.recordsHeader}>
                       該当レコード ({filteredRecords.length}件)
                     </ThemedText>
@@ -520,7 +561,8 @@ export const Analysis = () => {
   if (mode === 'cumulative') {
     return (
       <GestureDetector gesture={swipeGesture}>
-      <FlatList
+      <Animated.FlatList
+        style={slideStyle}
         data={cumulativeRows}
         keyExtractor={(item) => item.date}
         contentContainerStyle={styles.list}
@@ -543,8 +585,8 @@ export const Analysis = () => {
           </ThemedView>
         }
         renderItem={({ item }) => {
-          const dailyColor = item.dailyProfit >= 0 ? '#4CAF50' : '#F44336';
-          const cumColor = item.cumulativeProfit >= 0 ? '#4CAF50' : '#F44336';
+          const dailyColor = item.dailyProfit >= 0 ? c.profit : c.loss;
+          const cumColor = item.cumulativeProfit >= 0 ? c.profit : c.loss;
           const isExpanded = expandedKey === item.date;
           const filteredRecords = isExpanded
             ? getFilteredRecords(item.date)
@@ -569,7 +611,7 @@ export const Analysis = () => {
                 </ThemedText>
 
                 {isExpanded && (
-                  <View style={styles.expandedContent}>
+                  <View style={[styles.expandedContent, { borderTopColor: c.border }]}>
                     <ThemedText style={styles.recordsHeader}>
                       該当レコード ({filteredRecords.length}件)
                     </ThemedText>
@@ -599,7 +641,8 @@ export const Analysis = () => {
   // ===== place / betType / raceNo（既存） =====
   return (
     <GestureDetector gesture={swipeGesture}>
-    <FlatList
+    <Animated.FlatList
+      style={slideStyle}
       data={data}
       keyExtractor={(item) => item.key}
       contentContainerStyle={styles.list}
@@ -626,7 +669,7 @@ export const Analysis = () => {
         </ThemedView>
       }
       renderItem={({ item }) => {
-        const profitColor = item.profit >= 0 ? '#4CAF50' : '#F44336';
+        const profitColor = item.profit >= 0 ? c.profit : c.loss;
         const isExpanded = expandedKey === item.key;
         const filteredRecords = isExpanded ? getFilteredRecords(item.key) : [];
 
@@ -655,7 +698,7 @@ export const Analysis = () => {
               </ThemedText>
 
               {isExpanded && (
-                <View style={styles.expandedContent}>
+                <View style={[styles.expandedContent, { borderTopColor: c.border }]}>
                   <ThemedText style={styles.recordsHeader}>
                     該当レコード ({filteredRecords.length}件)
                   </ThemedText>
@@ -710,7 +753,6 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.1)',
   },
 
   recordsHeader: {
@@ -744,27 +786,21 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     opacity: 0.9,
   },
-  segActive: { borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)' },
-
   trendBarBg: {
     height: 10,
     borderRadius: 999,
     overflow: 'hidden',
     marginVertical: 8,
-    backgroundColor: 'rgba(255,255,255,0.12)',
   },
   trendBar: { height: 10, borderRadius: 999 },
 
   bestCard: {
     borderWidth: 1,
-    borderColor: 'rgba(76,175,80,0.6)',
   },
   worstCard: {
     borderWidth: 1,
-    borderColor: 'rgba(244,67,54,0.6)',
   },
   streakCard: {
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
   },
 });

@@ -2,6 +2,8 @@ import { useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Colors } from '@/constants/theme';
 
 export type PlaceStats = {
   place: string;
@@ -16,6 +18,9 @@ type Props = {
 };
 
 export const PlaceBarChart = ({ data }: Props) => {
+  const scheme = useColorScheme() ?? 'light';
+  const c = Colors[scheme];
+
   const maxRate = useMemo(() => {
     const m = Math.max(...data.map((d) => d.recoveryRate), 100);
     return m;
@@ -27,7 +32,7 @@ export const PlaceBarChart = ({ data }: Props) => {
 
       {data.map((item) => {
         const widthPct = Math.max(0, Math.min(100, (item.recoveryRate / maxRate) * 100));
-        const barColor = item.profit >= 0 ? '#4CAF50' : '#F44336'; // 勝ち=緑 / 負け=赤
+        const barColor = item.profit >= 0 ? c.profit : c.loss;
 
         return (
           <View key={item.place} style={styles.row}>
@@ -36,7 +41,7 @@ export const PlaceBarChart = ({ data }: Props) => {
             </View>
 
             <View style={styles.barWrap}>
-              <View style={styles.barBg}>
+              <View style={[styles.barBg, { backgroundColor: c.subtle }]}>
                 <View style={[styles.bar, { width: `${widthPct}%`, backgroundColor: barColor }]} />
               </View>
               <ThemedText style={styles.value}>{item.recoveryRate}%</ThemedText>
@@ -74,7 +79,6 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 999,
     overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.12)', // ダークでも見える
   },
   bar: {
     height: 10,

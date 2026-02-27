@@ -22,6 +22,7 @@ import {
   getBaseLength,
   estimateRaceDate,
 } from './qrExtractors';
+import { lookupRaceDate } from './jraCalendar';
 import { extractNormalEntries } from './qrNormalEntries';
 import { extractBoxSelection } from './qrBox';
 import { extractNagashiSelection } from './qrNagashi';
@@ -96,11 +97,12 @@ export const extractJRAItemsFromQR = (qrData: string): JRAQRData => {
     result.round = extractRoundFrom95DigitCode(base);
     result.day = extractDayFrom95DigitCode(base);
 
-    // 年情報からレース日付を推定
-    const estimatedDate = estimateRaceDate(result.year);
+    // カレンダー照合で日付を推定
+    const estimatedDate = lookupRaceDate(result.place, result.year, result.round, result.day);
     if (estimatedDate) {
-      result.estimatedDate = estimatedDate.toISOString();
+      result.estimatedDate = estimatedDate;
     }
+
     result.buy_method = extractBuyMethodFrom95DigitCode(base);
     result.ticket_no = extractTicketNoFrom95DigitCode(base); // 17-22桁（発券通番）
     result.sales_location = extractSalesLocationFrom95DigitCode(base); // 29-32桁

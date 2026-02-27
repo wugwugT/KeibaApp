@@ -5,6 +5,7 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
+  Pressable,
   Alert,
   ActivityIndicator,
   Platform,
@@ -13,15 +14,36 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useTheme } from '@react-navigation/native';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import * as Haptics from 'expo-haptics';
 import { Camera } from 'expo-camera';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, {
+  runOnJS,
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withDelay,
+  interpolate,
+} from 'react-native-reanimated';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { BetRecord } from '../types/betRecord';
+import { Colors } from '../../constants/theme';
 import { getAllBetRecords, saveBetRecords } from '../services/db/crud';
 import { BetRecordCard } from '../components/common/BetRecordCard';
 import { extractJRAItemsFromQR, isValidQRData } from '../services/qr';
 import { exportAsCSV } from '../services/export';
 import { importFromCSV } from '../services/import';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+const FAB_MENU_ITEMS = [
+  { icon: 'qr-code-outline' as const, label: 'QRスキャン', key: 'qr' as const },
+  { icon: 'create-outline' as const, label: '手動入力', key: 'manual' as const },
+  { icon: 'cloud-upload-outline' as const, label: 'CSVエクスポート', key: 'export' as const },
+  { icon: 'cloud-download-outline' as const, label: 'CSVインポート', key: 'import' as const },
+];
 
 type FilterType = 'all' | 'today' | 'month' | 'lastMonth' | 'custom';
 
@@ -41,6 +63,114 @@ export const Dashboard = () => {
   const [customStart, setCustomStart] = useState<Date | null>(null);
   const [customEnd, setCustomEnd] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState<'start' | 'end' | null>(null);
+
+  // ===== フィルタ スワイプ + スライドアニメーション =====
+  const FILTERS: FilterType[] = ['all', 'today', 'month', 'lastMonth', 'custom'];
+  const filterSlide = useSharedValue(1);
+  const filterSlideDir = useSharedValue(0);
+
+  const filterSlideStyle = useAnimatedStyle(() => ({
+    opacity: filterSlide.value,
+    transform: [
+      { translateX: interpolate(filterSlide.value, [0, 1], [filterSlideDir.value * 50, 0]) },
+    ],
+  }));
+
+  const changeFilter = (next: FilterType) => {
+    const oldIdx = FILTERS.indexOf(filter);
+    const newIdx = FILTERS.indexOf(next);
+    if (oldIdx === newIdx) return;
+    filterSlideDir.value = newIdx > oldIdx ? 1 : -1;
+    filterSlide.value = 0;
+    setFilter(next);
+    setShowDatePicker(null);
+    filterSlide.value = withTiming(1, { duration: 250 });
+  };
+
+  const goToNextFilter = () => {
+    const i = FILTERS.indexOf(filter);
+    if (i < FILTERS.length - 1) changeFilter(FILTERS[i + 1]);
+  };
+
+  const goToPrevFilter = () => {
+    const i = FILTERS.indexOf(filter);
+    if (i > 0) changeFilter(FILTERS[i - 1]);
+  };
+
+  const swipeGesture = Gesture.Pan()
+    .activeOffsetX([-15, 15])
+    .failOffsetY([-15, 15])
+    .onEnd((event) => {
+      if (event.translationX < -30) {
+        runOnJS(goToNextFilter)();
+      } else if (event.translationX > 30) {
+        runOnJS(goToPrevFilter)();
+      }
+    });
+
+  // ===== Speed Dial FAB =====
+  const fabOpen = useSharedValue(0);
+
+  const toggleFab = () => {
+    const opening = fabOpen.value === 0;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    fabOpen.value = withTiming(opening ? 1 : 0, { duration: 250 });
+  };
+
+  const closeFab = () => {
+    fabOpen.value = withTiming(0, { duration: 200 });
+  };
+
+  const fabIconStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${interpolate(fabOpen.value, [0, 1], [0, 45])}deg` }],
+  }));
+
+  const overlayStyle = useAnimatedStyle(() => ({
+    opacity: fabOpen.value,
+    pointerEvents: fabOpen.value > 0.01 ? 'auto' as const : 'none' as const,
+  }));
+
+  const menuItemStyle0 = useAnimatedStyle(() => {
+    const delay = (FAB_MENU_ITEMS.length - 1) * 50;
+    return {
+      opacity: withDelay(delay, withTiming(fabOpen.value, { duration: 200 })),
+      transform: [
+        { scale: withDelay(delay, withTiming(fabOpen.value, { duration: 200 })) },
+        { translateY: withDelay(delay, withTiming(interpolate(fabOpen.value, [0, 1], [20, 0]), { duration: 200 })) },
+      ],
+    };
+  });
+  const menuItemStyle1 = useAnimatedStyle(() => {
+    const delay = (FAB_MENU_ITEMS.length - 2) * 50;
+    return {
+      opacity: withDelay(delay, withTiming(fabOpen.value, { duration: 200 })),
+      transform: [
+        { scale: withDelay(delay, withTiming(fabOpen.value, { duration: 200 })) },
+        { translateY: withDelay(delay, withTiming(interpolate(fabOpen.value, [0, 1], [20, 0]), { duration: 200 })) },
+      ],
+    };
+  });
+  const menuItemStyle2 = useAnimatedStyle(() => {
+    const delay = (FAB_MENU_ITEMS.length - 3) * 50;
+    return {
+      opacity: withDelay(delay, withTiming(fabOpen.value, { duration: 200 })),
+      transform: [
+        { scale: withDelay(delay, withTiming(fabOpen.value, { duration: 200 })) },
+        { translateY: withDelay(delay, withTiming(interpolate(fabOpen.value, [0, 1], [20, 0]), { duration: 200 })) },
+      ],
+    };
+  });
+  const menuItemStyle3 = useAnimatedStyle(() => {
+    const delay = (FAB_MENU_ITEMS.length - 4) * 50;
+    return {
+      opacity: withDelay(delay, withTiming(fabOpen.value, { duration: 200 })),
+      transform: [
+        { scale: withDelay(delay, withTiming(fabOpen.value, { duration: 200 })) },
+        { translateY: withDelay(delay, withTiming(interpolate(fabOpen.value, [0, 1], [20, 0]), { duration: 200 })) },
+      ],
+    };
+  });
+  const menuItemStyles = [menuItemStyle0, menuItemStyle1, menuItemStyle2, menuItemStyle3];
 
   useFocusEffect(
     useCallback(() => {
@@ -91,6 +221,24 @@ export const Dashboard = () => {
       loadRecords();
     } catch (e) {
       Alert.alert('エラー', 'インポートに失敗しました');
+    }
+  };
+
+  const handleFabAction = (key: typeof FAB_MENU_ITEMS[number]['key']) => {
+    closeFab();
+    switch (key) {
+      case 'qr':
+        router.push('/scanner');
+        break;
+      case 'manual':
+        router.push('/recordEdit');
+        break;
+      case 'export':
+        exportAsCSV(filteredRecords);
+        break;
+      case 'import':
+        handleImport();
+        break;
     }
   };
 
@@ -177,9 +325,9 @@ export const Dashboard = () => {
     };
   }, [filteredRecords]);
 
-  // “勝ち/負け”色はそのままでもOK（ただしダークで彩度強すぎたら調整）
-  const profitColor = summary.totalProfit >= 0 ? '#2ecc71' : '#e74c3c';
-  const avgColor = summary.avgDailyProfit >= 0 ? '#2ecc71' : '#e74c3c';
+  const s = dark ? 'dark' : 'light';
+  const profitColor = summary.totalProfit >= 0 ? Colors[s].profit : Colors[s].loss;
+  const avgColor = summary.avgDailyProfit >= 0 ? Colors[s].profit : Colors[s].loss;
 
   // ダーク/ライトで見やすい “カード内の薄い面” を自前で用意
   const subtleCard = dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)';
@@ -188,7 +336,9 @@ export const Dashboard = () => {
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
-      <FlatList
+      <GestureDetector gesture={swipeGesture}>
+      <Animated.FlatList
+        style={filterSlideStyle}
         data={filteredRecords}
         keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => (
@@ -287,12 +437,7 @@ export const Dashboard = () => {
                     accessibilityLabel={`${label}フィルタ`}
                     accessibilityRole="button"
                     accessibilityState={{ selected: active }}
-                    onPress={() => {
-                      setFilter(key);
-                      if (key === 'custom') {
-                        setShowDatePicker('start');
-                      }
-                    }}
+                    onPress={() => changeFilter(key)}
                   >
                     <Text
                       style={[
@@ -306,21 +451,32 @@ export const Dashboard = () => {
                 );
               })}
             </View>
-            {filter === 'custom' && (customStart || customEnd) && (
-              <TouchableOpacity
-                style={styles.customRangeRow}
-                onPress={() => setShowDatePicker('start')}
-              >
-                <Text style={[styles.customRangeText, { color: colors.text }]}>
-                  {customStart
-                    ? `${customStart.getFullYear()}/${String(customStart.getMonth() + 1).padStart(2, '0')}/${String(customStart.getDate()).padStart(2, '0')}`
-                    : '---'}
-                  {' 〜 '}
-                  {customEnd
-                    ? `${customEnd.getFullYear()}/${String(customEnd.getMonth() + 1).padStart(2, '0')}/${String(customEnd.getDate()).padStart(2, '0')}`
-                    : '---'}
-                </Text>
-              </TouchableOpacity>
+            {filter === 'custom' && (
+              <View style={styles.customDateRow}>
+                <TouchableOpacity
+                  style={[styles.dateInput, { backgroundColor: subtleCard, borderColor: showDatePicker === 'start' ? '#007AFF' : 'transparent' }]}
+                  onPress={() => setShowDatePicker(showDatePicker === 'start' ? null : 'start')}
+                >
+                  <Text style={[styles.dateInputLabel, { color: colors.text }]}>開始日</Text>
+                  <Text style={[styles.dateInputValue, { color: customStart ? colors.text : colors.text + '66' }]}>
+                    {customStart
+                      ? `${customStart.getFullYear()}/${String(customStart.getMonth() + 1).padStart(2, '0')}/${String(customStart.getDate()).padStart(2, '0')}`
+                      : '未設定'}
+                  </Text>
+                </TouchableOpacity>
+                <Text style={[styles.dateSeparator, { color: colors.text }]}>〜</Text>
+                <TouchableOpacity
+                  style={[styles.dateInput, { backgroundColor: subtleCard, borderColor: showDatePicker === 'end' ? '#007AFF' : 'transparent' }]}
+                  onPress={() => setShowDatePicker(showDatePicker === 'end' ? null : 'end')}
+                >
+                  <Text style={[styles.dateInputLabel, { color: colors.text }]}>終了日</Text>
+                  <Text style={[styles.dateInputValue, { color: customEnd ? colors.text : colors.text + '66' }]}>
+                    {customEnd
+                      ? `${customEnd.getFullYear()}/${String(customEnd.getMonth() + 1).padStart(2, '0')}/${String(customEnd.getDate()).padStart(2, '0')}`
+                      : '未設定'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             )}
           </>
         }
@@ -341,6 +497,7 @@ export const Dashboard = () => {
         }
         contentContainerStyle={{ paddingBottom: 120 }}
       />
+      </GestureDetector>
 
       {/* ===== DateTimePicker ===== */}
       {showDatePicker && (
@@ -351,6 +508,7 @@ export const Dashboard = () => {
               : customEnd ?? new Date()
           }
           mode="date"
+          locale="ja"
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
           onChange={(_, selectedDate) => {
             if (Platform.OS === 'android') {
@@ -359,16 +517,44 @@ export const Dashboard = () => {
             if (!selectedDate) return;
             if (showDatePicker === 'start') {
               setCustomStart(selectedDate);
-              setShowDatePicker('end');
             } else {
               setCustomEnd(selectedDate);
-              setShowDatePicker(null);
             }
           }}
         />
       )}
 
-      {/* ===== ＋ボタン（Scanner起動） ===== */}
+      {/* ===== Speed Dial FAB ===== */}
+      <Animated.View style={[styles.overlay, overlayStyle]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={closeFab} />
+      </Animated.View>
+
+      {FAB_MENU_ITEMS.map((item, index) => (
+        <AnimatedPressable
+          key={item.key}
+          style={[
+            styles.fabMenuItem,
+            {
+              bottom: 90 + index * 56,
+              backgroundColor: dark ? 'rgba(40,40,40,0.95)' : 'rgba(255,255,255,0.95)',
+              shadowColor: dark ? 'transparent' : '#000',
+            },
+            menuItemStyles[index],
+          ]}
+          onPress={() => handleFabAction(item.key)}
+        >
+          <Ionicons
+            name={item.icon}
+            size={20}
+            color={dark ? '#fff' : '#1a1a1a'}
+            style={styles.fabMenuIcon}
+          />
+          <Text style={[styles.fabMenuLabel, { color: dark ? '#fff' : '#1a1a1a' }]}>
+            {item.label}
+          </Text>
+        </AnimatedPressable>
+      ))}
+
       <TouchableOpacity
         style={[
           styles.fab,
@@ -376,18 +562,12 @@ export const Dashboard = () => {
         ]}
         accessibilityLabel="メニューを開く"
         accessibilityRole="button"
-        onPress={() => {
-          Alert.alert('メニュー', '操作を選択してください', [
-            { text: 'QRスキャン', onPress: () => router.push('/scanner') },
-            { text: '写真から読み取り', onPress: handlePhotoQR },
-            { text: '手動入力', onPress: () => router.push('/recordEdit') },
-            { text: 'CSVエクスポート', onPress: () => exportAsCSV(filteredRecords) },
-            { text: 'CSVインポート', onPress: handleImport },
-            { text: 'キャンセル', style: 'cancel' },
-          ]);
-        }}
+        activeOpacity={0.8}
+        onPress={toggleFab}
       >
-        <Text style={[styles.fabText, { color: '#fff' }]}>＋</Text>
+        <Animated.Text style={[styles.fabText, { color: '#fff' }, fabIconStyle]}>
+          ＋
+        </Animated.Text>
       </TouchableOpacity>
     </SafeAreaView>
   );
@@ -465,13 +645,33 @@ const styles = StyleSheet.create({
   filterText: {
     fontSize: 14,
   },
-  customRangeRow: {
+  customDateRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
     marginBottom: 8,
+    gap: 8,
   },
-  customRangeText: {
-    fontSize: 13,
-    opacity: 0.7,
+  dateInput: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 2,
+  },
+  dateInputLabel: {
+    fontSize: 11,
+    opacity: 0.6,
+    marginBottom: 2,
+  },
+  dateInputValue: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  dateSeparator: {
+    fontSize: 16,
+    opacity: 0.5,
   },
 
   // ===== 空状態 =====
@@ -495,7 +695,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  /** ＋ボタン */
+  // ===== Speed Dial FAB =====
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    zIndex: 10,
+  },
   fab: {
     position: 'absolute',
     right: 20,
@@ -505,10 +710,32 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 6,
+    elevation: 8,
+    zIndex: 12,
   },
   fabText: {
     fontSize: 32,
     lineHeight: 36,
+  },
+  fabMenuItem: {
+    position: 'absolute',
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 24,
+    elevation: 4,
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    zIndex: 11,
+  },
+  fabMenuIcon: {
+    marginRight: 10,
+  },
+  fabMenuLabel: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

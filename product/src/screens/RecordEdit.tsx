@@ -119,8 +119,9 @@ export default function RecordEditScreen({ qrData = null }: Props) {
     if (isEdit) return; // 編集中はQR反映しない
     if (!qrData) return;
 
+    // estimatedDateがあればそれを使用、なければ今日の日付
     if (qrData.estimatedDate) {
-      setDate(new Date(qrData.estimatedDate));
+      setDate(new Date(qrData.estimatedDate + 'T00:00:00'));
     } else {
       setDate(new Date());
     }
@@ -255,12 +256,18 @@ export default function RecordEditScreen({ qrData = null }: Props) {
 
           {/* 日付 */}
           <Text style={[styles.label, { color: colors.subText }]}>日付</Text>
+          {qrData && qrData.year !== null && (
+            <Text style={[styles.qrDateHint, { color: colors.subText }]}>
+              QR情報: {2000 + qrData.year}年 {qrData.round ?? '?'}回 {qrData.day ?? '?'}日目 — 正しい日付を設定してください
+            </Text>
+          )}
           <TouchableOpacity
             style={[
               styles.input,
               {
                 backgroundColor: colors.inputBg,
-                borderColor: colors.border,
+                borderColor: qrData && !qrData.estimatedDate ? '#FF9500' : colors.border,
+                borderWidth: qrData && !qrData.estimatedDate ? 1.5 : 1,
               },
             ]}
             onPress={() => setShowDatePicker(true)}
@@ -584,6 +591,12 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, fontWeight: 'bold', marginBottom: 16 },
 
   label: { marginTop: 12, marginBottom: 4 },
+
+  qrDateHint: {
+    fontSize: 12,
+    marginBottom: 4,
+    fontStyle: 'italic',
+  },
 
   input: {
     borderWidth: 1,
